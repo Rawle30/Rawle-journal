@@ -10,14 +10,14 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  font-size: 14px; /* Reduced font size slightly for compactness */
+  font-size: 14px;
   background-color: #fff;
   color: #000;
 }
 .ticker {
   background-color: var(--red);
   color: white;
-  padding: 0.3em; /* Reduced padding */
+  padding: 0.3em;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -35,35 +35,35 @@ body {
   background-color: var(--blue);
   color: white;
   border: none;
-  padding: 0.3em 0.6em; /* Reduced padding */
-  border-radius: 3px; /* Smaller radius */
+  padding: 0.3em 0.6em;
+  border-radius: 3px;
   cursor: pointer;
-  font-size: 0.85em; /* Smaller font */
+  font-size: 0.85em;
 }
 #darkToggle:hover {
   background-color: #4ac0c7;
 }
 .sidebar {
   background-color: var(--blue);
-  padding: 0.6em; /* Reduced padding */
-  width: 180px; /* Reduced sidebar width */
+  padding: 0.6em;
+  width: 180px;
   position: fixed;
   height: 100%;
   color: black;
 }
 .sidebar h1 {
   margin-top: 0;
-  font-size: 1.2em; /* Smaller heading */
+  font-size: 1.2em;
 }
 .sidebar ul {
   list-style: none;
   padding: 0;
 }
 .sidebar li {
-  margin: 0.5em 0; /* Reduced margin */
+  margin: 0.5em 0;
   font-weight: bold;
   cursor: pointer;
-  font-size: 0.9em; /* Smaller font */
+  font-size: 0.9em;
 }
 .sidebar li.active {
   background-color: white;
@@ -72,28 +72,64 @@ body {
   padding: 0.2em;
 }
 .dashboard {
-  margin-left: 200px; /* Adjusted for smaller sidebar */
-  padding: 0.3em; /* Reduced padding */
+  margin-left: 200px;
+  padding: 0.3em;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-gap: 0.3em; /* Reduced gap */
+  grid-gap: 0.3em;
+  grid-auto-rows: minmax(200px, auto);
 }
 section {
   background-color: var(--yellow);
-  padding: 0.5em; /* Reduced padding for smaller sections */
-  border-radius: 6px; /* Smaller radius */
-  font-size: 0.9em; /* Smaller font for content */
+  padding: 0.5em;
+  border-radius: 6px;
+  font-size: 0.9em;
+  min-height: 200px;
+  max-height: 50vh;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 section.active-section {
   box-shadow: 0 0 0 2px var(--blue);
 }
+section h2 {
+  margin: 0 0 0.3em 0;
+  font-size: 1.1em;
+}
 table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
+  flex-grow: 1;
+}
+.table-container {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto; /* Allow vertical scrolling within table */
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--blue) #f0f0f0;
+  max-height: 40vh; /* Limit table height */
+}
+.table-container::-webkit-scrollbar {
+  height: 8px;
+  width: 8px; /* Vertical scrollbar width */
+}
+.table-container::-webkit-scrollbar-thumb {
+  background: var(--blue);
+  border-radius: 4px;
+}
+.table-container::-webkit-scrollbar-track {
+  background: #f0f0f0;
 }
 th, td {
-  padding: 0.3em; /* Reduced padding */
+  padding: 0.3em;
   border-bottom: 1px solid #ccc;
+  white-space: nowrap;
 }
 .green {
   color: var(--green);
@@ -105,24 +141,25 @@ th, td {
 }
 .csv-controls,
 .filter-controls {
-  margin: 0.3em 0; /* Reduced margin */
+  margin: 0.3em 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3em; /* Reduced gap */
+  gap: 0.3em;
   align-items: center;
 }
 input[type="text"],
 input[type="date"],
 input[type="file"],
 select {
-  padding: 0.3em; /* Reduced padding */
+  padding: 0.3em;
   border-radius: 3px;
   border: 1px solid #ccc;
-  font-size: 0.85em; /* Smaller font */
+  font-size: 0.85em;
+  box-sizing: border-box;
 }
 button {
-  font-size: 0.85em; /* Smaller font */
-  padding: 0.3em 0.6em; /* Reduced padding */
+  font-size: 0.85em;
+  padding: 0.3em 0.6em;
   border-radius: 3px;
   border: none;
   background-color: var(--blue);
@@ -134,7 +171,7 @@ button:hover {
 }
 #dropZone {
   border: 2px dashed #ccc;
-  padding: 0.5em; /* Reduced padding */
+  padding: 0.5em;
   text-align: center;
   margin-bottom: 0.5em;
   background-color: #f9f9f9;
@@ -147,8 +184,9 @@ button:hover {
 }
 .trade-entry form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Smaller min width */
-  gap: 0.3em; /* Reduced gap */
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.3em;
+  flex-grow: 1;
 }
 .trade-entry label {
   display: flex;
@@ -160,23 +198,26 @@ button:hover {
   margin-top: 0.3em;
 }
 ul {
-  padding-left: 1em; /* Slightly smaller padding */
+  padding-left: 1em;
+  margin: 0;
 }
 canvas {
   display: block;
   max-width: 100%;
+  width: 100%;
 }
 .equity-curve canvas,
 .symbol-distribution canvas,
 .broker-distribution canvas {
   width: 100%;
-  height: 25vh; /* Reduced height for smaller charts */
+  height: 25vh;
+  max-height: 150px;
 }
 td[data-broker]::before {
   content: attr(data-broker);
   background-color: var(--blue);
   color: white;
-  font-size: 0.7em; /* Smaller font */
+  font-size: 0.7em;
   padding: 0.15em 0.3em;
   border-radius: 3px;
   margin-right: 0.3em;
@@ -222,12 +263,23 @@ body.dark select {
   color: #f0f0f0;
   border: 1px solid #555;
 }
+body.dark .table-container::-webkit-scrollbar-thumb {
+  background: var(--blue);
+}
+body.dark .table-container::-webkit-scrollbar-track {
+  background: #333;
+}
+body.dark .table-container {
+  scrollbar-color: var(--blue) #333;
+}
 /* 🧱 Compact Mode */
 body.compact .dashboard {
-  grid-gap: 0.2em; /* Further reduced gap */
+  grid-gap: 0.2em;
 }
 body.compact section {
-  padding: 0.3em; /* Further reduced padding */
+  padding: 0.3em;
+  min-height: 150px;
+  max-height: 40vh;
 }
 body.compact .csv-controls,
 body.compact .filter-controls {
@@ -237,21 +289,46 @@ body.compact .filter-controls {
 body.compact .trade-entry form {
   gap: 0.2em;
 }
+body.compact .equity-curve canvas,
+body.compact .symbol-distribution canvas,
+body.compact .broker-distribution canvas {
+  height: 20vh;
+  max-height: 120px;
+}
+body.compact .table-container {
+  max-height: 30vh;
+}
 /* 📱 Responsive Layout */
 @media (max-width: 900px) {
   .dashboard {
     grid-template-columns: 1fr 1fr;
-    grid-gap: 0.3em; /* Consistent with base */
+    grid-gap: 0.3em;
+    grid-auto-rows: minmax(180px, auto);
   }
   section {
-    padding: 0.4em; /* Slightly smaller for medium screens */
+    padding: 0.4em;
+    min-height: 180px;
+    max-height: 45vh;
+  }
+  .equity-curve canvas,
+  .symbol-distribution canvas,
+  .broker-distribution canvas {
+    height: 22vh;
+    max-height: 130px;
+  }
+  table {
+    min-width: 500px;
+  }
+  .table-container {
+    max-height: 40vh;
   }
 }
 @media (max-width: 600px) {
   .dashboard {
     grid-template-columns: 1fr;
     margin-left: 0;
-    grid-gap: 0.2em; /* Smaller gap for mobile */
+    grid-gap: 0.2em;
+    grid-auto-rows: minmax(160px, auto);
   }
   .sidebar {
     position: static;
@@ -259,15 +336,27 @@ body.compact .trade-entry form {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.4em; /* Reduced padding */
+    padding: 0.4em;
   }
   .trade-entry form {
     grid-template-columns: 1fr;
   }
+  section {
+    padding: 0.3em;
+    min-height: 160px;
+    max-height: 40vh;
+  }
   .equity-curve canvas,
   .symbol-distribution canvas,
   .broker-distribution canvas {
-    height: 20vh; /* Smaller charts on mobile */
+    height: 20vh;
+    max-height: 120px;
+  }
+  table {
+    min-width: 400px;
+  }
+  .table-container {
+    max-height: 35vh;
   }
 }
 ```
