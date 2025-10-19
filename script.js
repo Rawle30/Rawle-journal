@@ -167,6 +167,28 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCharts();
   });
 
+  // 🧭 Sidebar Tab Navigation
+  document.querySelectorAll('.sidebar li').forEach(item => {
+    item.addEventListener('click', () => {
+      const targetId = item.dataset.target;
+
+      // Toggle active tab
+      document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
+      item.classList.add('active');
+
+      // Hide all dashboard sections
+      document.querySelectorAll('main section').forEach(sec => {
+        sec.style.display = 'none';
+      });
+
+      // Show target section
+      const targetSection = document.getElementById(targetId);
+      if (targetSection) {
+        targetSection.style.display = 'block';
+      }
+    });
+  });
+
   // 🚀 Initialize Dashboard
   renderTrades();
   renderCharts();
