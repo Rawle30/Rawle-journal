@@ -8,11 +8,13 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+  <!-- 🔴 Ticker and Dark Mode -->
   <header class="ticker">
     <div id="ticker-scroll">Loading market data...</div>
     <button id="darkToggle">🌙 Toggle Dark Mode</button>
   </header>
 
+  <!-- 🔵 Sidebar Navigation -->
   <aside class="sidebar">
     <h1>📊 Trading Journal</h1>
     <nav>
@@ -25,26 +27,57 @@
     </nav>
   </aside>
 
+  <!-- 🟡 Main Dashboard -->
   <main class="dashboard">
+    <!-- Portfolio Overview -->
     <section id="portfolio">
       <h2>Portfolio Overview</h2>
       <div id="portfolio-summary"></div>
     </section>
 
+    <!-- Trades Table -->
     <section id="trades-table" style="display:none;">
       <h2>Trades</h2>
+
       <div class="csv-controls">
         <button id="exportCSV">Download CSV</button>
         <input type="file" id="importCSV" accept=".csv" />
       </div>
+
+      <div class="filter-controls">
+        <label for="brokerFilter">Filter by Broker:</label>
+        <select id="brokerFilter">
+          <option value="all">All Brokers</option>
+          <option value="Etrade">Etrade</option>
+          <option value="Schwab">Schwab</option>
+          <option value="Fidelity">Fidelity</option>
+          <option value="Webull">Webull</option>
+          <option value="Robinhood">Robinhood</option>
+        </select>
+      </div>
+
+      <div id="dropZone">📂 Drag & drop CSV file here</div>
+
       <table>
         <thead>
-          <tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Date</th><th>Exit</th><th>Edit</th></tr>
+          <tr>
+            <th>Symbol</th>
+            <th>Qty</th>
+            <th>Entry</th>
+            <th>Entry Date</th>
+            <th>Exit</th>
+            <th>Exit Date</th>
+            <th>Multiplier</th>
+            <th>Type</th>
+            <th>Broker</th>
+            <th>Edit</th>
+          </tr>
         </thead>
         <tbody id="tradeRows"></tbody>
       </table>
     </section>
 
+    <!-- Alerts -->
     <section id="alerts" style="display:none;">
       <h2>Recent Alerts</h2>
       <ul>
@@ -53,21 +86,25 @@
       </ul>
     </section>
 
+    <!-- Settings -->
     <section id="settings" style="display:none;">
       <h2>Settings</h2>
       <p>Dark mode, preferences, etc.</p>
     </section>
 
+    <!-- Equity Curve Chart -->
     <section class="equity-curve">
       <h2>Equity Curve</h2>
       <canvas id="equityChart"></canvas>
     </section>
 
+    <!-- Symbol Distribution Chart -->
     <section class="symbol-distribution">
       <h2>Symbol Distribution</h2>
       <canvas id="symbolChart"></canvas>
     </section>
 
+    <!-- Risk Analytics -->
     <section class="risk-analytics">
       <h2>Risk Analytics</h2>
       <p>Max Drawdown: <span>-5%</span></p>
@@ -75,15 +112,21 @@
       <p>Win Rate: <span>68%</span></p>
     </section>
 
+    <!-- Profit / Loss Summary -->
     <section class="profit-loss">
       <h2>Profit / Loss Summary</h2>
       <table>
-        <thead><tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr></thead>
+        <thead>
+          <tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr>
+        </thead>
         <tbody id="plRows"></tbody>
-        <tfoot><tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr></tfoot>
+        <tfoot>
+          <tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr>
+        </tfoot>
       </table>
     </section>
 
+    <!-- Add / Edit Trade Form -->
     <section class="trade-entry">
       <h2>Add / Edit Trade</h2>
       <form id="tradeForm">
@@ -115,6 +158,7 @@
     </section>
   </main>
 
+  <!-- 🧠 App Logic -->
   <script src="script.js"></script>
 </body>
 </html>
