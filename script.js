@@ -229,6 +229,13 @@ renderCharts();
 renderTicker();
 setInterval(updateMarketPrices, 10000);
 
+document.addEventListener('DOMContentLoaded', () => {
+  renderTrades();
+  renderPL();
+  renderCharts();
+  renderTicker();
+});
+
 
 
 
