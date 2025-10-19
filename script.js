@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.toggle('compact', this.checked);
   });
 
-  // 📊 Trades Array
   const trades = [];
 
   // 🧠 Load from localStorage
@@ -22,9 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        trades.push(...parsed);
-      }
+      if (Array.isArray(parsed)) trades.push(...parsed);
     } catch (e) {
       console.warn('Failed to load saved trades:', e);
     }
@@ -46,6 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const price = trade.exit ?? marketPrices[trade.symbol] ?? trade.entry;
     const multiplier = trade.type === 'option' ? trade.multiplier || 100 : 1;
     return (price - trade.entry) * trade.qty * multiplier;
+  }
+
+  function saveTrades() {
+    localStorage.setItem('trades', JSON.stringify(trades));
   }
 
   function renderTrades(brokerFilter = 'all', symbolFilter = '') {
@@ -84,21 +85,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('tradeCount').textContent = `${filteredTrades.length} trades shown`;
+
+    const totalPL = filteredTrades.reduce((sum, t) => sum + getPL(t), 0);
+    const avgPL = filteredTrades.length ? totalPL / filteredTrades.length : 0;
+    document.getElementById('tradeSummary').innerHTML = `
+      <p><strong>Total P/L:</strong> ${formatPL(totalPL)}</p>
+      <p><strong>Average P/L:</strong> ${formatPL(avgPL)}</p>
+    `;
+
     renderCharts(filteredTrades);
   }
 
   function renderCharts(filtered = trades) {
-    const equityData = filtered.map(t => getPL(t));
     const labels = filtered.map(t => t.symbol);
+    const equityData = filtered.map(t => getPL(t));
+    const chartType = document.getElementById('chartType')?.value || 'line';
 
     new Chart(document.getElementById('equityChart'), {
-      type: 'line',
+      type: chartType,
       data: {
         labels,
         datasets: [{
           label: 'Equity',
           data: equityData,
-          borderColor: '#7DDA58',
+          backgroundColor: chartType === 'bar' ? '#7DDA58' : undefined,
+          borderColor: chartType === 'line' ? '#7DDA58' : undefined,
           fill: false
         }]
       },
@@ -140,10 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function saveTrades() {
-    localStorage.setItem('trades', JSON.stringify(trades));
-  }
-
   window.editTrade = function(index) {
     const trade = trades[index];
     const form = document.getElementById('tradeForm');
@@ -157,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     form.type.value = trade.type;
     form.broker.value = trade.broker;
     form.tags.value = (trade.tags || []).join(', ');
-    form.dataset.editIndex = index;
+    form.dataset.editIndex = index.toString();
     form.scrollIntoView({ behavior: 'smooth' });
   };
 
@@ -179,8 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const editIndex = form.dataset.editIndex;
-    if (editIndex !== undefined) {
-      trades[editIndex] = newTrade;
+    if (editIndex !== undefined && editIndex !== '') {
+      trades[parseInt(editIndex)] = newTrade;
       delete form.dataset.editIndex;
     } else {
       trades.push(newTrade);
@@ -189,8 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
     form.reset();
     saveTrades();
     renderTrades(document.getElementById('brokerFilter').value, document.getElementById('symbolSearch').value);
-    renderPL();
-    renderPortfolio();
   });
 
   document.querySelectorAll('.sidebar li').forEach(item => {
@@ -222,7 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
     touchEndX = e.changedTouches[0].screenX;
     const delta = touchEndX - touchStartX;
     if (Math.abs(delta) < 50) return;
-
     const tabs = Array.from(document.querySelectorAll('.sidebar li'));
     const activeIndex = tabs.findIndex(tab => tab.classList.contains('active'));
     const nextIndex = delta > 0 ? activeIndex - 1 : activeIndex + 1;
@@ -269,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const link = document.createElement('a');
-    link.href = URL.createObjectObjectURL(blob);
+    link.href = URL.createObjectURL(blob);
     link.download = 'filtered_trades.csv';
     link.click();
   });
@@ -340,8 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
     trades.push(...newTrades);
     saveTrades();
     renderTrades(document.getElementById('brokerFilter').value, document.getElementById('symbolSearch').value);
-    renderPL();
-    renderPortfolio();
   }
 
   // 📈 Profit / Loss Summary
@@ -430,7 +432,4 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPL();
   renderPortfolio();
 });
-
-
-
 
