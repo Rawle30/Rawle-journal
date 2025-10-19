@@ -1,4 +1,3 @@
-```javascript
 const CACHE_NAME = 'journal-cache-v2';
 const urlsToCache = [
   'index.html',
@@ -36,6 +35,6 @@ self.addEventListener('fetch', event => {
     })
   );
 });
-```;
+
 
 
