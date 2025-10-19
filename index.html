@@ -17,15 +17,43 @@
     <h1>📊 Trading Journal</h1>
     <nav>
       <ul>
-        <li>Portfolio</li>
-        <li>Trades</li>
-        <li>Alerts</li>
-        <li>Settings</li>
+        <li data-target="portfolio" class="active">Portfolio</li>
+        <li data-target="trades-table">Trades</li>
+        <li data-target="alerts">Alerts</li>
+        <li data-target="settings">Settings</li>
       </ul>
     </nav>
   </aside>
 
   <main class="dashboard">
+    <section id="portfolio" class="portfolio">
+      <h2>Portfolio Overview</h2>
+      <p>Coming soon...</p>
+    </section>
+
+    <section id="trades-table" class="trades-table" style="display:none;">
+      <h2>Trades</h2>
+      <table>
+        <thead>
+          <tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Date</th><th>Exit</th><th>Edit</th></tr>
+        </thead>
+        <tbody id="tradeRows"></tbody>
+      </table>
+    </section>
+
+    <section id="alerts" class="alerts" style="display:none;">
+      <h2>Recent Alerts</h2>
+      <ul>
+        <li>AAPL | $150 | Above</li>
+        <li>MSFT | $200 | Below</li>
+      </ul>
+    </section>
+
+    <section id="settings" class="settings" style="display:none;">
+      <h2>Settings</h2>
+      <p>Dark mode, preferences, etc.</p>
+    </section>
+
     <section class="equity-curve">
       <h2>Equity Curve</h2>
       <canvas id="equityChart"></canvas>
@@ -34,26 +62,6 @@
     <section class="symbol-distribution">
       <h2>Symbol Distribution</h2>
       <canvas id="symbolChart"></canvas>
-    </section>
-
-    <section class="trades-table">
-      <h2>Trades</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Symbol</th><th>Qty</th><th>Entry</th><th>Date</th><th>Exit</th><th>Edit</th>
-          </tr>
-        </thead>
-        <tbody id="tradeRows"></tbody>
-      </table>
-    </section>
-
-    <section class="alerts">
-      <h2>Recent Alerts</h2>
-      <ul>
-        <li>AAPL | $150 | Above</li>
-        <li>MSFT | $200 | Below</li>
-      </ul>
     </section>
 
     <section class="risk-analytics">
@@ -66,20 +74,47 @@
     <section class="profit-loss">
       <h2>Profit / Loss Summary</h2>
       <table>
-        <thead>
-          <tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr>
-        </thead>
+        <thead><tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr></thead>
         <tbody id="plRows"></tbody>
-        <tfoot>
-          <tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr>
-        </tfoot>
+        <tfoot><tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr></tfoot>
       </table>
+    </section>
+
+    <section class="trade-entry">
+      <h2>Add / Edit Trade</h2>
+      <form id="tradeForm">
+        <label>Symbol: <input type="text" name="symbol" required /></label>
+        <label>Qty: <input type="number" name="qty" required /></label>
+        <label>Entry Price: <input type="number" name="entry" step="0.01" required /></label>
+        <label>Entry Date: <input type="date" name="date" required /></label>
+        <label>Exit Price: <input type="number" name="exit" step="0.01" /></label>
+        <label>Exit Date: <input type="date" name="exitDate" /></label>
+        <label>Multiplier (Options only): <input type="number" name="multiplier" value="100" /></label>
+        <label>Type:
+          <select name="type">
+            <option value="stock">Stock</option>
+            <option value="option">Option</option>
+            <option value="crypto">Crypto</option>
+          </select>
+        </label>
+        <label>Broker:
+          <select name="broker">
+            <option value="Etrade">Etrade</option>
+            <option value="Schwab">Schwab</option>
+            <option value="Fidelity">Fidelity</option>
+            <option value="Webull">Webull</option>
+            <option value="Robinhood">Robinhood</option>
+          </select>
+        </label>
+        <button type="submit">Save Trade</button>
+      </form>
     </section>
   </main>
 
   <script src="script.js"></script>
 </body>
 </html>
+
 
 
 
