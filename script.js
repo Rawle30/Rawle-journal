@@ -6,17 +6,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('darkToggle').addEventListener('click', () => {
     document.body.classList.toggle('dark');
-    const mode = document.body.classList.contains('dark') ? 'dark' : 'light';
-    localStorage.setItem('theme', mode);
+    localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
   });
 
-  // 📊 Sample Trades
-  const trades = [
-    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', broker: 'Etrade', type: 'stock' },
-    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', broker: 'Schwab', type: 'stock' },
-    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', broker: 'Fidelity', type: 'stock' },
-    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', broker: 'Robinhood', type: 'stock' }
-  ];
+  // 📦 Compact Mode Toggle
+  document.getElementById('compactToggle')?.addEventListener('change', function () {
+    document.body.classList.toggle('compact', this.checked);
+  });
+
+  // 📊 Trades Array
+  const trades = [];
+
+  // 🧠 Load from localStorage
+  const stored = localStorage.getItem('trades');
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        trades.push(...parsed);
+      }
+    } catch (e) {
+      console.warn('Failed to load saved trades:', e);
+    }
+  }
 
   const marketPrices = {
     AAPL: 144.95,
@@ -36,13 +48,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return (price - trade.entry) * trade.qty * multiplier;
   }
 
-  function renderTrades(filter = 'all') {
+  function renderTrades(brokerFilter = 'all', symbolFilter = '') {
+    const startDate = document.getElementById('startDate')?.value;
+    const endDate = document.getElementById('endDate')?.value;
+    const tagFilter = document.getElementById('tagFilter')?.value.toLowerCase();
+
     const tbody = document.getElementById('tradeRows');
     tbody.innerHTML = '';
 
-    const filteredTrades = filter === 'all'
-      ? trades
-      : trades.filter(trade => trade.broker === filter);
+    const filteredTrades = trades.filter(trade => {
+      const brokerMatch = brokerFilter === 'all' || trade.broker === brokerFilter;
+      const symbolMatch = trade.symbol.toLowerCase().includes(symbolFilter.toLowerCase());
+      const entryDate = new Date(trade.entryDate);
+      const startMatch = !startDate || entryDate >= new Date(startDate);
+      const endMatch = !endDate || entryDate <= new Date(endDate);
+      const tagMatch = !tagFilter || (trade.tags || []).some(tag => tag.toLowerCase().includes(tagFilter));
+      return brokerMatch && symbolMatch && startMatch && endMatch && tagMatch;
+    });
 
     filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
@@ -55,52 +77,274 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${trade.exitDate ?? '-'}</td>
         <td>${trade.multiplier ?? 100}</td>
         <td>${trade.type}</td>
-        <td>${trade.broker}</td>
+        <td data-broker="${trade.broker}"></td>
         <td><button onclick="editTrade(${index})">Edit</button></td>
       `;
       tbody.appendChild(row);
     });
+
+    document.getElementById('tradeCount').textContent = `${filteredTrades.length} trades shown`;
+    renderCharts(filteredTrades);
   }
 
-  function renderCharts() {
+  function renderCharts(filtered = trades) {
+    const equityData = filtered.map(t => getPL(t));
+    const labels = filtered.map(t => t.symbol);
+
     new Chart(document.getElementById('equityChart'), {
       type: 'line',
       data: {
-        labels: ['Oct 1', 'Oct 5', 'Oct 10', 'Oct 15', 'Oct 20', 'Oct 24'],
+        labels,
         datasets: [{
           label: 'Equity',
-          data: [60000, 64000, 67000, 72000, 76000, 78000],
+          data: equityData,
           borderColor: '#7DDA58',
           fill: false
         }]
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false
-      }
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    const symbolCounts = {};
+    filtered.forEach(t => {
+      symbolCounts[t.symbol] = (symbolCounts[t.symbol] || 0) + 1;
     });
 
     new Chart(document.getElementById('symbolChart'), {
       type: 'pie',
       data: {
-        labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
+        labels: Object.keys(symbolCounts),
         datasets: [{
-          data: [1500, 4500, 9600, 3000],
-          backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
+          data: Object.values(symbolCounts),
+          backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900', '#DFC57B']
         }]
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false
-      }
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    const brokerCounts = {};
+    filtered.forEach(t => {
+      brokerCounts[t.broker] = (brokerCounts[t.broker] || 0) + 1;
+    });
+
+    new Chart(document.getElementById('brokerChart'), {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(brokerCounts),
+        datasets: [{
+          data: Object.values(brokerCounts),
+          backgroundColor: ['#5DE2E7', '#FFDE59', '#7DDA58', '#FE9900', '#DFC57B']
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
     });
   }
 
-  function renderTicker() {
-    const ticker = document.getElementById('ticker-scroll');
-    ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${marketPrices.GOOG} | MSFT: $${marketPrices.MSFT} | TSLA: $${marketPrices.TSLA}`;
+  function saveTrades() {
+    localStorage.setItem('trades', JSON.stringify(trades));
   }
 
+  window.editTrade = function(index) {
+    const trade = trades[index];
+    const form = document.getElementById('tradeForm');
+    form.symbol.value = trade.symbol;
+    form.qty.value = trade.qty;
+    form.entry.value = trade.entry;
+    form.date.value = trade.entryDate;
+    form.exit.value = trade.exit ?? '';
+    form.exitDate.value = trade.exitDate ?? '';
+    form.multiplier.value = trade.multiplier ?? 100;
+    form.type.value = trade.type;
+    form.broker.value = trade.broker;
+    form.tags.value = (trade.tags || []).join(', ');
+    form.dataset.editIndex = index;
+    form.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  document.getElementById('tradeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = e.target;
+
+    const newTrade = {
+      symbol: form.symbol.value.trim(),
+      qty: parseFloat(form.qty.value),
+      entry: parseFloat(form.entry.value),
+      entryDate: form.date.value,
+      exit: form.exit.value ? parseFloat(form.exit.value) : null,
+      exitDate: form.exitDate.value || null,
+      multiplier: form.multiplier.value ? parseInt(form.multiplier.value) : 100,
+      type: form.type.value,
+      broker: form.broker.value,
+      tags: form.tags.value.split(',').map(t => t.trim()).filter(Boolean)
+    };
+
+    const editIndex = form.dataset.editIndex;
+    if (editIndex !== undefined) {
+      trades[editIndex] = newTrade;
+      delete form.dataset.editIndex;
+    } else {
+      trades.push(newTrade);
+    }
+
+    form.reset();
+    saveTrades();
+    renderTrades(document.getElementById('brokerFilter').value, document.getElementById('symbolSearch').value);
+    renderPL();
+    renderPortfolio();
+  });
+
+  document.querySelectorAll('.sidebar li').forEach(item => {
+    item.addEventListener('click', () => {
+      const targetId = item.dataset.target;
+      document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('main section').forEach(sec => {
+        sec.classList.remove('active-section');
+        sec.style.display = 'none';
+      });
+      const targetSection = document.getElementById(targetId);
+      if (targetSection) {
+        targetSection.classList.add('active-section');
+        targetSection.style.display = 'block';
+      }
+    });
+  });
+
+  // 🧭 Swipe Navigation
+  let touchStartX = 0;
+  let touchEndX = 0;
+
+  document.body.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+  });
+
+  document.body.addEventListener('touchend', e => {
+    touchEndX = e.changedTouches[0].screenX;
+    const delta = touchEndX - touchStartX;
+    if (Math.abs(delta) < 50) return;
+
+    const tabs = Array.from(document.querySelectorAll('.sidebar li'));
+    const activeIndex = tabs.findIndex(tab => tab.classList.contains('active'));
+    const nextIndex = delta > 0 ? activeIndex - 1 : activeIndex + 1;
+    if (nextIndex >= 0 && nextIndex < tabs.length) {
+      tabs[nextIndex].click();
+    }
+  });
+
+  // 🔍 Filter Listeners
+  ['brokerFilter', 'symbolSearch', 'tagFilter', 'startDate', 'endDate'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', () => {
+        const broker = document.getElementById('brokerFilter').value;
+        const symbol = document.getElementById('symbolSearch').value;
+        renderTrades(broker, symbol);
+      });
+    }
+  });
+
+  // 📤 Export Filtered Trades
+  document.getElementById('exportFiltered')?.addEventListener('click', () => {
+    const broker = document.getElementById('brokerFilter').value;
+    const symbol = document.getElementById('symbolSearch').value;
+    const tag = document.getElementById('tagFilter').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    const filtered = trades.filter(trade => {
+      const entryDate = new Date(trade.entryDate);
+      return (
+        (broker === 'all' || trade.broker === broker) &&
+        trade.symbol.toLowerCase().includes(symbol.toLowerCase()) &&
+        (!startDate || entryDate >= new Date(startDate)) &&
+        (!endDate || entryDate <= new Date(endDate)) &&
+        (!tag || (trade.tags || []).some(t => t.toLowerCase().includes(tag.toLowerCase())))
+      );
+    });
+
+    let csv = 'Symbol,Qty,Entry,Date,Exit,ExitDate,Multiplier,Type,Broker,Tags\n';
+    filtered.forEach(trade => {
+      csv += `${trade.symbol},${trade.qty},${trade.entry},${trade.entryDate},${trade.exit ?? ''},${trade.exitDate ?? ''},${trade.multiplier ?? 100},${trade.type},${trade.broker},"${(trade.tags || []).join(', ')}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectObjectURL(blob);
+    link.download = 'filtered_trades.csv';
+    link.click();
+  });
+
+  // 📥 CSV Import
+  document.getElementById('importCSV')?.addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      parseCSV(event.target.result);
+    };
+    reader.readAsText(file);
+  });
+
+  // 📂 Drag-and-Drop CSV Upload
+  const dropZone = document.getElementById('dropZone');
+  dropZone?.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone?.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone?.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.csv')) {
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        parseCSV(event.target.result);
+      };
+      reader.readAsText(file);
+    }
+  });
+
+  // 🧠 CSV Parser
+  function parseCSV(text) {
+    const lines = text.split('\n').filter(line => line.trim());
+    const headers = lines[0].split(',').map(h => h.trim());
+    const newTrades = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      if (values.length < 9) continue;
+
+      const trade = {
+        symbol: values[0],
+        qty: parseFloat(values[1]),
+        entry: parseFloat(values[2]),
+        entryDate: values[3],
+        exit: values[4] ? parseFloat(values[4]) : null,
+        exitDate: values[5] || null,
+        multiplier: values[6] ? parseInt(values[6]) : 100,
+        type: values[7],
+        broker: values[8],
+        tags: values[9] ? values[9].split(',').map(t => t.trim()) : []
+      };
+
+      newTrades.push(trade);
+    }
+
+    trades.length = 0;
+    trades.push(...newTrades);
+    saveTrades();
+    renderTrades(document.getElementById('brokerFilter').value, document.getElementById('symbolSearch').value);
+    renderPL();
+    renderPortfolio();
+  }
+
+  // 📈 Profit / Loss Summary
   function renderPL() {
     const brokers = {};
     trades.forEach(trade => {
@@ -134,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('combinedPL').innerHTML = formatPL(totalRealized + totalUnrealized);
   }
 
+  // 📊 Portfolio Overview
   function renderPortfolio() {
     const container = document.getElementById('portfolio-summary');
     const symbols = {};
@@ -172,160 +417,13 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  window.editTrade = function(index) {
-    const trade = trades[index];
-    const form = document.getElementById('tradeForm');
-
-    form.symbol.value = trade.symbol;
-    form.qty.value = trade.qty;
-    form.entry.value = trade.entry;
-    form.date.value = trade.entryDate;
-    form.exit.value = trade.exit ?? '';
-    form.exitDate.value = trade.exitDate ?? '';
-    form.multiplier.value = trade.multiplier ?? 100;
-    form.type.value = trade.type;
-    form.broker.value = trade.broker;
-
-    form.dataset.editIndex = index;
-    form.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  document.getElementById('tradeForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const form = e.target;
-
-    const newTrade = {
-      symbol: form.symbol.value.trim(),
-      qty: parseFloat(form.qty.value),
-      entry: parseFloat(form.entry.value),
-      entryDate: form.date.value,
-      exit: form.exit.value ? parseFloat(form.exit.value) : null,
-      exitDate: form.exitDate.value || null,
-      multiplier: form.multiplier.value ? parseInt(form.multiplier.value) : 100,
-      type: form.type.value,
-      broker: form.broker.value
-    };
-
-    const editIndex = form.dataset.editIndex;
-    if (editIndex !== undefined) {
-      trades[editIndex] = newTrade;
-      delete form.dataset.editIndex;
-    } else {
-      trades.push(newTrade);
-    }
-
-    form.reset();
-    renderTrades(document.getElementById('brokerFilter').value);
-    renderPL();
-    renderCharts();
-    renderPortfolio();
-  });
-
-  document.querySelectorAll('.sidebar li').forEach(item => {
-    item.addEventListener('click', () => {
-      const targetId = item.dataset.target;
-      document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
-      item.classList.add('active');
-      document.querySelectorAll('main section').forEach(sec => {
-        sec.style.display = 'none';
-      });
-      const targetSection = document.getElementById(targetId);
-      if (targetSection) {
-        targetSection.style.display = 'block';
-      }
-    });
-  });
-
-  // 📤 Export Trades to CSV
-  document.getElementById('exportCSV').addEventListener('click', () => {
-    let csv = 'Symbol,Qty,Entry,Date,Exit,ExitDate,Multiplier,Type,Broker\n';
-    trades.forEach(trade => {
-      csv += `${trade.symbol},${trade.qty},${trade.entry},${trade.entryDate},${trade.exit ?? ''},${trade.exitDate ?? ''},${trade.multiplier ?? 100},${trade.type},${trade.broker}\n`;
-    });
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'trades.csv';
-    link.click();
-  });
-
-  // 📥 CSV Import Handler
-  document.getElementById('importCSV').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(event) {
-      parseCSV(event.target.result);
-    };
-    reader.readAsText(file);
-  });
-
-  // 📂 Drag-and-Drop CSV Upload
-  const dropZone = document.getElementById('dropZone');
-  dropZone.addEventListener('dragover', e => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-  });
-
-  dropZone.addEventListener('dragleave', () => {
-    dropZone.classList.remove('dragover');
-  });
-
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    const file = e.dataTransfer.files[0];
-    if (file && file.name.endsWith('.csv')) {
-      const reader = new FileReader();
-      reader.onload = function(event) {
-        parseCSV(event.target.result);
-      };
-      reader.readAsText(file);
-    }
-  });
-
-  // 🧠 CSV Parser
-  function parseCSV(text) {
-    const lines = text.split('\n').filter(line => line.trim());
-    const headers = lines[0].split(',').map(h => h.trim());
-    const newTrades = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
-      if (values.length < 9) continue;
-
-      const trade = {
-        symbol: values[0],
-        qty: parseFloat(values[1]),
-        entry: parseFloat(values[2]),
-        entryDate: values[3],
-        exit: values[4] ? parseFloat(values[4]) : null,
-        exitDate: values[5] || null,
-        multiplier: values[6] ? parseInt(values[6]) : 100,
-        type: values[7],
-        broker: values[8]
-      };
-
-      newTrades.push(trade);
-    }
-
-    trades.length = 0;
-    trades.push(...newTrades);
-    renderTrades(document.getElementById('brokerFilter').value);
-    renderPL();
-    renderCharts();
-    renderPortfolio();
+  // 🟢 Ticker
+  function renderTicker() {
+    const ticker = document.getElementById('ticker-scroll');
+    ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${marketPrices.GOOG} | MSFT: $${marketPrices.MSFT} | TSLA: $${marketPrices.TSLA}`;
   }
 
-  // 🔍 Broker Filter Listener
-  document.getElementById('brokerFilter').addEventListener('change', function() {
-    const selected = this.value;
-    renderTrades(selected);
-  });
-
-  // 🚀 Initialize Dashboard
+  // 🚀 Initialize
   renderTrades();
   renderCharts();
   renderTicker();
