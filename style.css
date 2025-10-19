@@ -1,4 +1,3 @@
-/* style.css */
 :root {
   --red: #E4080A;
   --green: #7DDA58;
@@ -19,7 +18,9 @@ body {
   background-color: var(--red);
   color: white;
   padding: 0.5em;
-  overflow: hidden;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 #ticker-scroll {
@@ -32,6 +33,15 @@ body {
   100% { transform: translateX(-100%); }
 }
 
+#darkToggle {
+  background-color: var(--blue);
+  color: white;
+  border: none;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .sidebar {
   background-color: var(--blue);
   padding: 1em;
@@ -39,6 +49,20 @@ body {
   position: fixed;
   height: 100%;
   color: black;
+}
+
+.sidebar h1 {
+  margin-top: 0;
+}
+
+.sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidebar li {
+  margin: 1em 0;
+  font-weight: bold;
 }
 
 .dashboard {
@@ -70,86 +94,13 @@ th, td {
 .green { color: var(--green); }
 .red { color: var(--red); }
 
-.trade-entry form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1em;
-}
-
-.trade-entry label {
-  display: flex;
-  flex-direction: column;
-  font-weight: bold;
-}
-
-.trade-entry button {
-  grid-column: span 2;
-  padding: 0.5em;
-  background-color: var(--blue);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.status-open {
-  background-color: #fff3cd;
-  color: #856404;
-  font-weight: bold;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.status-closed {
-  background-color: #d4edda;
-  color: #155724;
-  font-weight: bold;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-.trade-entry {
-  grid-column: span 3;
-  background-color: var(--gold);
-  padding: 1em;
-  border-radius: 8px;
-}
-
-.trade-entry form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1em;
-}
-
-.trade-entry label {
-  display: flex;
-  flex-direction: column;
-  font-weight: bold;
-}
-
-.trade-entry button {
-  grid-column: span 2;
-  padding: 0.5em;
-  background-color: var(--blue);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-/* Base dark mode styles */
 body.dark {
   background-color: #121212;
   color: #f0f0f0;
 }
 
-body.dark .sidebar {
-  background-color: #1e1e1e;
-  color: #f0f0f0;
-}
-
-body.dark section {
-  background-color: #2a2a2a;
-  color: #f0f0f0;
-}
-
+body.dark .sidebar,
+body.dark section,
 body.dark table {
   background-color: #1e1e1e;
   color: #f0f0f0;
@@ -159,39 +110,8 @@ body.dark th, body.dark td {
   border-color: #444;
 }
 
-body.dark .trade-entry button {
-  background-color: #444;
-  color: #fff;
-}
-
 body.dark .ticker {
   background-color: #333;
-  color: #fff;
-}
-
-body.dark .status-open {
-  background-color: #444;
-  color: #ffcc00;
-}
-
-body.dark .status-closed {
-  background-color: #2e7d32;
-  color: #c8e6c9;
-}
-#darkToggle {
-  margin-left: 1em;
-  padding: 0.5em 1em;
-  background-color: var(--blue);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-}
-#darkToggle {
-  position: absolute;
-  top: 10px;
-  right: 10px;
 }
 
 
