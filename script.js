@@ -1,7 +1,7 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', async () => {
   // ========= API Key for Alpha Vantage =========
-  const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
+  const API_KEY = 'I3AR7KSM7UR0RYLA'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
