@@ -1,4 +1,5 @@
 
+```css
 :root {
   --red: #E4080A;
   --green: #7DDA58;
@@ -105,10 +106,10 @@ table {
   flex-grow: 1;
 }
 #trades-table table {
-  min-width: 800px; /* Wider trades table */
+  min-width: 1000px; /* Increased width for trades table */
 }
 .profit-loss table {
-  min-width: 400px; /* Smaller for profit/loss table */
+  min-width: 400px;
 }
 .table-container {
   position: relative;
@@ -135,11 +136,11 @@ th, td {
   padding: 0.3em;
   border-bottom: 1px solid #ccc;
   white-space: nowrap;
-  text-align: left; /* Align text for consistency */
+  text-align: left;
 }
 th.current-price, td.current-price,
 th.pl, td.pl {
-  min-width: 120px; /* Ensure new columns have sufficient width */
+  min-width: 120px;
 }
 .green {
   color: var(--green);
@@ -356,7 +357,7 @@ body.compact .table-container {
     max-height: 130px;
   }
   #trades-table table {
-    min-width: 600px; /* Adjusted for medium screens */
+    min-width: 800px; /* Adjusted for medium screens */
   }
   .profit-loss table {
     min-width: 350px;
@@ -395,7 +396,7 @@ body.compact .table-container {
     max-height: 120px;
   }
   #trades-table table {
-    min-width: 500px; /* Adjusted for mobile */
+    min-width: 600px; /* Adjusted for mobile */
   }
   .profit-loss table {
     min-width: 300px;
@@ -404,3 +405,4 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+```
