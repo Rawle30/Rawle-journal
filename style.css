@@ -134,5 +134,49 @@ th, td {
   border-radius: 4px;
   cursor: pointer;
 }
+/* Base dark mode styles */
+body.dark {
+  background-color: #121212;
+  color: #f0f0f0;
+}
+
+body.dark .sidebar {
+  background-color: #1e1e1e;
+  color: #f0f0f0;
+}
+
+body.dark section {
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+}
+
+body.dark table {
+  background-color: #1e1e1e;
+  color: #f0f0f0;
+}
+
+body.dark th, body.dark td {
+  border-color: #444;
+}
+
+body.dark .trade-entry button {
+  background-color: #444;
+  color: #fff;
+}
+
+body.dark .ticker {
+  background-color: #333;
+  color: #fff;
+}
+
+body.dark .status-open {
+  background-color: #444;
+  color: #ffcc00;
+}
+
+body.dark .status-closed {
+  background-color: #2e7d32;
+  color: #c8e6c9;
+}
 
 
