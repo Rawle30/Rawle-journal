@@ -1,4 +1,4 @@
-```css
+
 :root {
   --red: #E4080A;
   --green: #7DDA58;
@@ -101,23 +101,28 @@ section h2 {
 }
 table {
   width: 100%;
-  min-width: 600px;
   border-collapse: collapse;
   flex-grow: 1;
+}
+#trades-table table {
+  min-width: 800px; /* Wider trades table */
+}
+.profit-loss table {
+  min-width: 400px; /* Smaller for profit/loss table */
 }
 .table-container {
   position: relative;
   width: 100%;
   overflow-x: auto;
-  overflow-y: auto; /* Allow vertical scrolling within table */
+  overflow-y: auto;
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: var(--blue) #f0f0f0;
-  max-height: 40vh; /* Limit table height */
+  max-height: 40vh;
 }
 .table-container::-webkit-scrollbar {
   height: 8px;
-  width: 8px; /* Vertical scrollbar width */
+  width: 8px;
 }
 .table-container::-webkit-scrollbar-thumb {
   background: var(--blue);
@@ -130,6 +135,11 @@ th, td {
   padding: 0.3em;
   border-bottom: 1px solid #ccc;
   white-space: nowrap;
+  text-align: left; /* Align text for consistency */
+}
+th.current-price, td.current-price,
+th.pl, td.pl {
+  min-width: 120px; /* Ensure new columns have sufficient width */
 }
 .green {
   color: var(--green);
@@ -168,6 +178,23 @@ button {
 }
 button:hover {
   background-color: #4ac0c7;
+}
+.edit-btn, .delete-btn, .save-btn, .cancel-btn {
+  margin-right: 0.3em;
+  padding: 0.2em 0.5em;
+  font-size: 0.8em;
+}
+.delete-btn {
+  background-color: var(--red);
+}
+.delete-btn:hover {
+  background-color: #c50707;
+}
+.save-btn {
+  background-color: var(--green);
+}
+.save-btn:hover {
+  background-color: #6cc04a;
 }
 #dropZone {
   border: 2px dashed #ccc;
@@ -272,6 +299,18 @@ body.dark .table-container::-webkit-scrollbar-track {
 body.dark .table-container {
   scrollbar-color: var(--blue) #333;
 }
+body.dark .delete-btn {
+  background-color: #c50707;
+}
+body.dark .delete-btn:hover {
+  background-color: #a50606;
+}
+body.dark .save-btn {
+  background-color: #6cc04a;
+}
+body.dark .save-btn:hover {
+  background-color: #5aa03b;
+}
 /* 🧱 Compact Mode */
 body.compact .dashboard {
   grid-gap: 0.2em;
@@ -316,8 +355,11 @@ body.compact .table-container {
     height: 22vh;
     max-height: 130px;
   }
-  table {
-    min-width: 500px;
+  #trades-table table {
+    min-width: 600px; /* Adjusted for medium screens */
+  }
+  .profit-loss table {
+    min-width: 350px;
   }
   .table-container {
     max-height: 40vh;
@@ -352,11 +394,13 @@ body.compact .table-container {
     height: 20vh;
     max-height: 120px;
   }
-  table {
-    min-width: 400px;
+  #trades-table table {
+    min-width: 500px; /* Adjusted for mobile */
+  }
+  .profit-loss table {
+    min-width: 300px;
   }
   .table-container {
     max-height: 35vh;
   }
 }
-```
