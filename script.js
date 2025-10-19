@@ -125,6 +125,50 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('combinedPL').textContent = `$${(totalRealized + totalUnrealized).toFixed(2)}`;
   }
 
+  // 📈 Render Portfolio Overview
+  function renderPortfolio() {
+    const container = document.getElementById('portfolio');
+    const summary = document.createElement('div');
+
+    const symbols = {};
+    let invested = 0;
+    let currentValue = 0;
+
+    trades.forEach(trade => {
+      const symbol = trade.symbol;
+      const qty = trade.qty;
+      const entry = trade.entry;
+      const price = marketPrices[symbol] ?? entry;
+      const value = price * qty;
+
+      invested += entry * qty;
+      currentValue += value;
+
+      if (!symbols[symbol]) {
+        symbols[symbol] = { qty: 0, value: 0 };
+      }
+      symbols[symbol].qty += qty;
+      symbols[symbol].value += value;
+    });
+
+    const netPL = currentValue - invested;
+
+    summary.innerHTML = `
+      <p><strong>Total Positions:</strong> ${trades.length}</p>
+      <p><strong>Total Invested:</strong> $${invested.toFixed(2)}</p>
+      <p><strong>Current Value:</strong> $${currentValue.toFixed(2)}</p>
+      <p><strong>Unrealized P/L:</strong> <span class="${netPL >= 0 ? 'green' : 'red'}">$${netPL.toFixed(2)}</span></p>
+      <h3>Holdings by Symbol:</h3>
+      <ul>
+        ${Object.entries(symbols).map(([sym, data]) =>
+          `<li>${sym}: ${data.qty} shares ($${data.value.toFixed(2)})</li>`).join('')}
+      </ul>
+    `;
+
+    container.innerHTML = '';
+    container.appendChild(summary);
+  }
+
   // ✏️ Edit Trade Handler
   window.editTrade = function(index) {
     const trade = trades[index];
@@ -173,20 +217,26 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTrades();
     renderPL();
     renderCharts();
+    renderPortfolio();
   });
 
   // 🧭 Sidebar Tab Navigation
+  document.querySelectorAll
+  // 🧭 Sidebar Tab Navigation (continued)
   document.querySelectorAll('.sidebar li').forEach(item => {
     item.addEventListener('click', () => {
       const targetId = item.dataset.target;
 
+      // Highlight active tab
       document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
       item.classList.add('active');
 
+      // Hide all dashboard sections
       document.querySelectorAll('main section').forEach(sec => {
         sec.style.display = 'none';
       });
 
+      // Show selected section
       const targetSection = document.getElementById(targetId);
       if (targetSection) {
         targetSection.style.display = 'block';
@@ -195,29 +245,29 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 📤 Export Trades Table to CSV
-  document.getElementById('exportCSV')?.addEventListener('click', () => {
-    const rows = document.querySelectorAll('#tradeRows tr');
-    let csv = 'Symbol,Qty,Entry,Date,Exit\n';
-    rows.forEach(row => {
-      const cols = row.querySelectorAll('td');
-      const data = Array.from(cols).slice(0, 5).map(td => td.textContent.trim());
-      csv += data.join(',') + '\n';
-    });
+  const exportBtn = document.getElementById('exportCSV');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      let csv = 'Symbol,Qty,Entry,Date,Exit\n';
+      trades.forEach(trade => {
+        csv += `${trade.symbol},${trade.qty},${trade.entry},${trade.entryDate},${trade.exit ?? ''}\n`;
+      });
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'trades.csv';
-    link.click();
-  });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'trades.csv';
+      link.click();
+    });
+  }
 
   // 🚀 Initialize Dashboard
   renderTrades();
   renderCharts();
   renderTicker();
   renderPL();
+  renderPortfolio();
 });
-
 
 
 
