@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveEditedTrade(row, index) {
     const cells = row.querySelectorAll('td');
     const updatedTrade = {
-      symbol: cells[0].querySelector('input')?.value || '',
+      symbol: String(cells[0].querySelector('input')?.value || ''), // Ensure symbol is a string
       qty: asNumber(cells[1].querySelector('input')?.value, 0),
       entry: asNumber(cells[2].querySelector('input')?.value, 0),
       entryDate: cells[3].querySelector('input')?.value || '',
@@ -376,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       if (!tradeForm.symbol || !tradeForm.qty || !tradeForm.entry || !tradeForm.date) return;
       const newTrade = {
-        symbol: tradeForm.symbol.value.trim(),
+        symbol: String(tradeForm.symbol.value.trim()), // Ensure symbol is a string
         qty: asNumber(tradeForm.qty.value, 0),
         entry: asNumber(tradeForm.entry.value, 0),
         entryDate: tradeForm.date.value || '',
@@ -485,9 +485,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const text = event.target.result;
       const lines = text.split('\n').slice(1).filter(line => line.trim());
       const newTrades = lines.map(line => {
-        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
+        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags, , ] = line.split(',');
         return {
-          symbol: symbol || '',
+          symbol: String(symbol || ''), // Explicitly cast to string
           qty: asNumber(qty, 0),
           entry: asNumber(entry, 0),
           entryDate: entryDate || '',
@@ -584,5 +584,6 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(err => console.error('Service Worker registration failed:', err));
   }
 });
+
 
 
