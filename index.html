@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trading Journal</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="manifest" href="manifest.json" /> <!-- Added manifest link for PWA -->
+  <link rel="manifest" href="manifest.json" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -61,23 +62,25 @@
         <input type="date" id="endDate" />
       </div>
       <div id="dropZone">📂 Drag & drop CSV file here</div>
-      <table>
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Qty</th>
-            <th>Entry</th>
-            <th>Entry Date</th>
-            <th>Exit</th>
-            <th>Exit Date</th>
-            <th>Multiplier</th>
-            <th>Type</th>
-            <th>Broker</th>
-            <th>Edit</th>
-          </tr>
-        </thead>
-        <tbody id="tradeRows"></tbody>
-      </table>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Qty</th>
+              <th>Entry</th>
+              <th>Entry Date</th>
+              <th>Exit</th>
+              <th>Exit Date</th>
+              <th>Multiplier</th>
+              <th>Type</th>
+              <th>Broker</th>
+              <th>Edit</th>
+            </tr>
+          </thead>
+          <tbody id="tradeRows"></tbody>
+        </table>
+      </div>
       <p id="tradeCount"></p>
       <div id="tradeSummary"></div>
     </section>
@@ -129,15 +132,17 @@
     <!-- Profit / Loss Summary -->
     <section class="profit-loss">
       <h2>Profit / Loss Summary</h2>
-      <table>
-        <thead>
-          <tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr>
-        </thead>
-        <tbody id="plRows"></tbody>
-        <tfoot>
-          <tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr>
-        </tfoot>
-      </table>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr>
+          </thead>
+          <tbody id="plRows"></tbody>
+          <tfoot>
+            <tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr>
+          </tfoot>
+        </table>
+      </div>
     </section>
     <!-- Add / Edit Trade Form -->
     <section class="trade-entry">
@@ -175,6 +180,7 @@
   <script src="script.js"></script>
 </body>
 </html>
+```
 
 
 
