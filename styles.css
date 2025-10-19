@@ -1,14 +1,17 @@
 :root {
-  --box-padding: 12px;
-  --box-gap: 12px;
+  --box-padding: 10px;
+  --box-gap: 10px;
   --box-radius: 6px;
   --box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  --background-section: #a1ffec;
+  --background-body: #FE9900;
+  --text-color: #000000;
 }
 .container {
   display: grid;
   grid-template-columns: minmax(160px, 15%) 1fr;
   gap: var(--box-gap);
-  padding: 40px 12px 12px;
+  padding: 40px 10px 10px;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -24,27 +27,32 @@
   box-shadow: var(--box-shadow);
 }
 .chart-container {
-  height: 300px;
+  height: 280px;
   max-width: 700px;
   margin: 1rem auto;
 }
 canvas {
-  max-height: 300px;
+  max-height: 280px;
 }
-.pl-table, .risk-analytics, .strategy-analytics, .notes-analytics {
-  max-height: 240px;
-  overflow-y: auto;
+table {
+  width: 100%;
+  border-collapse: collapse;
 }
 th, td {
   padding: 6px;
+  font-size: 0.85rem;
+}
+.pl-table, .risk-analytics, .strategy-analytics, .notes-analytics {
+  max-height: 220px;
+  overflow-y: auto;
 }
 button, .timeframe-btn, .save-btn, .delete-btn, .export-chart-btn, .reset-zoom-btn {
   padding: 4px 8px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 .edit-input {
   padding: 4px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 @media(max-width:768px) {
   .container {
@@ -58,3 +66,4 @@ button, .timeframe-btn, .save-btn, .delete-btn, .export-chart-btn, .reset-zoom-b
     padding: 8px;
   }
 }
+
