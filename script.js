@@ -49,10 +49,20 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('trades', JSON.stringify(trades));
   }
 
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.style.display = 'block';
+    setTimeout(() => {
+      toast.style.display = 'none';
+    }, 2000);
+  }
+
   function renderTrades(brokerFilter = 'all', symbolFilter = '') {
     const startDate = document.getElementById('startDate')?.value;
     const endDate = document.getElementById('endDate')?.value;
     const tagFilter = document.getElementById('tagFilter')?.value.toLowerCase();
+    const editId = document.getElementById('tradeForm').dataset.editId;
 
     const tbody = document.getElementById('tradeRows');
     tbody.innerHTML = '';
@@ -67,8 +77,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return brokerMatch && symbolMatch && startMatch && endMatch && tagMatch;
     });
 
-    filteredTrades.forEach((trade, index) => {
+    filteredTrades.forEach(trade => {
       const row = document.createElement('tr');
+      if (editId && trade.id === editId) {
+        row.classList.add('highlight');
+      }
       row.innerHTML = `
         <td>${trade.symbol}</td>
         <td>${trade.qty}</td>
@@ -79,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${trade.multiplier ?? 100}</td>
         <td>${trade.type}</td>
         <td data-broker="${trade.broker}"></td>
-        <td><button onclick="editTrade(${index})">Edit</button></td>
+        <td><button onclick="editTrade('${trade.id}')">Edit</button></td>
       `;
       tbody.appendChild(row);
     });
@@ -151,8 +164,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  window.editTrade = function(index) {
-    const trade = trades[index];
+  window.editTrade = function(id) {
+    const trade = trades.find(t => t.id === id);
+    if (!trade) return;
+
     const form = document.getElementById('tradeForm');
     form.symbol.value = trade.symbol;
     form.qty.value = trade.qty;
@@ -164,15 +179,25 @@ document.addEventListener('DOMContentLoaded', () => {
     form.type.value = trade.type;
     form.broker.value = trade.broker;
     form.tags.value = (trade.tags || []).join(', ');
-    form.dataset.editIndex = index.toString();
+    form.dataset.editId = trade.id;
+    document.getElementById('cancelEdit').style.display = 'inline-block';
     form.scrollIntoView({ behavior: 'smooth' });
   };
+
+  document.getElementById('cancelEdit').addEventListener('click', () => {
+    const form = document.getElementById('tradeForm');
+    form.reset();
+    delete form.dataset.editId;
+    document.getElementById('cancelEdit').style.display = 'none';
+    renderTrades(document.getElementById('brokerFilter').value, document.getElementById('symbolSearch').value);
+  });
 
   document.getElementById('tradeForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const form = e.target;
 
     const newTrade = {
+      id: form.dataset.editId || Date.now().toString(),
       symbol: form.symbol.value.trim(),
       qty: parseFloat(form.qty.value),
       entry: parseFloat(form.entry.value),
@@ -185,54 +210,23 @@ document.addEventListener('DOMContentLoaded', () => {
       tags: form.tags.value.split(',').map(t => t.trim()).filter(Boolean)
     };
 
-    const editIndex = form.dataset.editIndex;
-    if (editIndex !== undefined && editIndex !== '') {
-      trades[parseInt(editIndex)] = newTrade;
-      delete form.dataset.editIndex;
+    const editId = form.dataset.editId;
+    if (editId) {
+      const index = trades.findIndex(t => t.id === editId);
+      if (index !== -1) trades[index] = newTrade;
+      delete form.dataset.editId;
+      showToast('Trade updated!');
     } else {
       trades.push(newTrade);
+      showToast('Trade added!');
     }
 
     form.reset();
+    document.getElementById('cancelEdit').style.display = 'none';
     saveTrades();
     renderTrades(document.getElementById('brokerFilter').value, document.getElementById('symbolSearch').value);
-  });
-
-  document.querySelectorAll('.sidebar li').forEach(item => {
-    item.addEventListener('click', () => {
-      const targetId = item.dataset.target;
-      document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
-      item.classList.add('active');
-      document.querySelectorAll('main section').forEach(sec => {
-        sec.classList.remove('active-section');
-        sec.style.display = 'none';
-      });
-      const targetSection = document.getElementById(targetId);
-      if (targetSection) {
-        targetSection.classList.add('active-section');
-        targetSection.style.display = 'block';
-      }
-    });
-  });
-
-  // 🧭 Swipe Navigation
-  let touchStartX = 0;
-  let touchEndX = 0;
-
-  document.body.addEventListener('touchstart', e => {
-    touchStartX = e.changedTouches[0].screenX;
-  });
-
-  document.body.addEventListener('touchend', e => {
-    touchEndX = e.changedTouches[0].screenX;
-    const delta = touchEndX - touchStartX;
-    if (Math.abs(delta) < 50) return;
-    const tabs = Array.from(document.querySelectorAll('.sidebar li'));
-    const activeIndex = tabs.findIndex(tab => tab.classList.contains('active'));
-    const nextIndex = delta > 0 ? activeIndex - 1 : activeIndex + 1;
-    if (nextIndex >= 0 && nextIndex < tabs.length) {
-      tabs[nextIndex].click();
-    }
+    renderPL();
+    renderPortfolio();
   });
 
   // 🔍 Filter Listeners
@@ -325,6 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (values.length < 9) continue;
 
       const trade = {
+        id: Date.now().toString() + i,
         symbol: values[0],
         qty: parseFloat(values[1]),
         entry: parseFloat(values[2]),
@@ -344,6 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
     trades.push(...newTrades);
     saveTrades();
     renderTrades(document.getElementById('brokerFilter').value, document.getElementById('symbolSearch').value);
+    renderPL();
+    renderPortfolio();
   }
 
   // 📈 Profit / Loss Summary
@@ -432,4 +429,3 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPL();
   renderPortfolio();
 });
-
