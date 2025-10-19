@@ -69,11 +69,10 @@
 </section>
     <section class="equity-curve"><h2>Equity Curve</h2><canvas id="equityChart"></canvas></section>
     <section class="symbol-distribution"><h2>Symbol Distribution</h2><canvas id="symbolChart"></canvas></section>
-    //<section class="trades-table"><h2>Trades</h2><table><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Date</th><th>Type</th><th>P/L</th><th>Actions</th></tr></thead><tbody id="tradeRows"></tbody></table></section>
+    <section class="profit-loss"><h2>Profit / Loss Summary</h2><table><thead><tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr></thead><tbody id="plRows"></tbody><tfoot><tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr></tfoot></table></section>
     <section class="alerts"><h2>Recent Alerts</h2><ul><li>AAPL | $150 | Above</li><li>MSFT | $275 | Below</li></ul></section>
     <section class="risk-analytics"><h2>Risk Analytics</h2><p>Max Drawdown: <span>-5%</span></p><p>Sharpe Ratio: <span>1.5</span></p><p>Win Rate: <span>68%</span></p></section>
-    <section class="profit-loss"><h2>Profit / Loss Summary</h2><table><thead><tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr></thead><tbody id="plRows"></tbody><tfoot><tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr></tfoot></table></section>
-    <!-- Trades Table with Filter -->
+        <!-- Trades Table with Filter -->
 <section class="trades-table">
   <h2>Trades</h2>
   <label for="tradeFilter">Filter:</label>
