@@ -162,7 +162,20 @@ document.getElementById('tradeForm').addEventListener('submit', function(e) {
     type: form.type.value,
     broker: form.broker.value
   };
+document.getElementById('tradeFilter').addEventListener('change', function(e) {
+  const filter = e.target.value;
+  let filteredTrades = trades;
 
+  if (filter === 'open') {
+    filteredTrades = trades.filter(t => !t.exit);
+  } else if (filter === 'closed') {
+    filteredTrades = trades.filter(t => t.exit);
+  }
+
+  renderTrades(filteredTrades);
+});
+
+  
   const editIndex = form.dataset.editIndex;
   if (editIndex !== undefined) {
     trades[editIndex] = newTrade;
