@@ -1,7 +1,6 @@
-// sw.js
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open('journal-cache').then(cache => {
+    caches.open('journal-cache-v1').then(cache => { // Versioned cache
       return cache.addAll([
         'index.html',
         'style.css',
