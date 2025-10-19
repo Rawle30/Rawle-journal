@@ -1,5 +1,5 @@
 'use strict';
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
@@ -21,18 +21,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ========= 📊 Trade Data (sample) =========
-  const trades = [
+  let trades = [
     { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
     { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] },
     { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
     { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] }
   ];
-  const marketPrices = {
-    AAPL: 144.95,
-    GOOG: 2900,
-    MSFT: 310,
-    TSLA: 950
-  };
+  let marketPrices = {};
+
+  // ========= API Key for Alpha Vantage =========
+  const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
+
+  // ========= Fetch Real-Time Prices =========
+  async function fetchMarketPrices(symbols) {
+    const uniqueSymbols = [...new Set(symbols)];
+    const promises = uniqueSymbols.map(async (symbol) => {
+      try {
+        const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+        const data = await response.json();
+        const quote = data['Global Quote'];
+        if (quote && quote['05. price']) {
+          marketPrices[symbol] = asNumber(quote['05. price'], 0);
+        }
+      } catch (error) {
+        console.error(`Error fetching price for ${symbol}:`, error);
+      }
+    });
+    await Promise.all(promises);
+  }
 
   // ========= 💰 Helpers =========
   const asNumber = (val, fallback = 0) => {
@@ -50,8 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const getPL = (trade) => {
     const entry = asNumber(trade.entry, 0);
-    const mkt = marketPrices?.[trade.symbol];
-    const price = asNumber(trade.exit ?? mkt ?? entry, entry);
+    const mkt = marketPrices[trade.symbol] || entry;
+    const price = asNumber(trade.exit ?? mkt, entry);
     const qty = asNumber(trade.qty, 0);
     const multiplier = trade.type === 'option' ? asNumber(trade.multiplier, 100) : 1;
     return (price - entry) * qty * multiplier;
@@ -65,6 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
     tbody.innerHTML = '';
     filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
+      const currentPrice = marketPrices[trade.symbol] ? fmtUSD(marketPrices[trade.symbol]) : '-';
+      const pl = getPL(trade);
+      const plHtml = formatPL(pl);
       row.innerHTML = `
         <td>${trade.symbol ?? ''}</td>
         <td>${asNumber(trade.qty, 0)}</td>
@@ -75,13 +94,88 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${trade.multiplier ?? (trade.type === 'option' ? 100 : 1)}</td>
         <td>${trade.type ?? 'stock'}</td>
         <td data-broker="${trade.broker ?? ''}">${trade.broker ?? ''}</td>
-        <td><button type="button" class="btn btn-sm btn-outline-primary">Edit</button></td>
+        <td>${currentPrice}</td>
+        <td>${plHtml}</td>
+        <td>
+          <button type="button" class="edit-btn">Edit</button>
+          <button type="button" class="delete-btn">Delete</button>
+        </td>
       `;
-      const btn = row.querySelector('button');
-      if (btn) btn.addEventListener('click', () => window.editTrade(index));
+      const editBtn = row.querySelector('.edit-btn');
+      const deleteBtn = row.querySelector('.delete-btn');
+      editBtn.addEventListener('click', () => enableEditMode(row, index));
+      deleteBtn.addEventListener('click', () => deleteTrade(index));
       tbody.appendChild(row);
     });
     tradeCount.textContent = `Total Trades: ${filteredTrades.length}`;
+  }
+
+  // ========= ✏️ Enable Edit Mode for Row =========
+  function enableEditMode(row, index) {
+    const trade = trades[index];
+    const cells = row.querySelectorAll('td');
+    const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker'];
+    fields.forEach((field, i) => {
+      const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : '');
+      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' ? 'number' : 'text'}" value="${value}">`;
+      if (field === 'type') {
+        cells[i].innerHTML = `
+          <select>
+            <option value="stock" ${value === 'stock' ? 'selected' : ''}>Stock</option>
+            <option value="option" ${value === 'option' ? 'selected' : ''}>Option</option>
+            <option value="crypto" ${value === 'crypto' ? 'selected' : ''}>Crypto</option>
+          </select>
+        `;
+      }
+      if (field === 'broker') {
+        cells[i].innerHTML = `
+          <select>
+            <option value="Etrade" ${value === 'Etrade' ? 'selected' : ''}>Etrade</option>
+            <option value="Schwab" ${value === 'Schwab' ? 'selected' : ''}>Schwab</option>
+            <option value="Fidelity" ${value === 'Fidelity' ? 'selected' : ''}>Fidelity</option>
+            <option value="Webull" ${value === 'Webull' ? 'selected' : ''}>Webull</option>
+            <option value="Robinhood" ${value === 'Robinhood' ? 'selected' : ''}>Robinhood</option>
+          </select>
+        `;
+      }
+    });
+    // Current Price and P/L remain non-editable
+    const actionsCell = cells[cells.length - 1];
+    actionsCell.innerHTML = `
+      <button type="button" class="save-btn">Save</button>
+      <button type="button" class="cancel-btn">Cancel</button>
+    `;
+    const saveBtn = actionsCell.querySelector('.save-btn');
+    const cancelBtn = actionsCell.querySelector('.cancel-btn');
+    saveBtn.addEventListener('click', () => saveEditedTrade(row, index));
+    cancelBtn.addEventListener('click', () => renderTrades(filterTrades()));
+  }
+
+  // ========= 💾 Save Edited Trade =========
+  function saveEditedTrade(row, index) {
+    const cells = row.querySelectorAll('td');
+    const updatedTrade = {
+      symbol: cells[0].querySelector('input')?.value || '',
+      qty: asNumber(cells[1].querySelector('input')?.value, 0),
+      entry: asNumber(cells[2].querySelector('input')?.value, 0),
+      entryDate: cells[3].querySelector('input')?.value || '',
+      exit: cells[4].querySelector('input')?.value ? asNumber(cells[4].querySelector('input').value, null) : null,
+      exitDate: cells[5].querySelector('input')?.value || null,
+      multiplier: asNumber(cells[6].querySelector('input')?.value, 1),
+      type: cells[7].querySelector('select')?.value || 'stock',
+      broker: cells[8].querySelector('select')?.value || '',
+      tags: trades[index].tags || [] // Preserve tags, or add editing if needed
+    };
+    trades[index] = updatedTrade;
+    renderAll();
+  }
+
+  // ========= 🗑️ Delete Trade =========
+  function deleteTrade(index) {
+    if (confirm('Are you sure you want to delete this trade?')) {
+      trades.splice(index, 1);
+      renderAll();
+    }
   }
 
   // ========= 📈 Render Charts =========
@@ -99,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chartTypeSelect = document.getElementById('chartType');
     const chartType = chartTypeSelect?.value || 'line';
 
-    // Equity chart (derived from trades)
+    // Equity chart
     const equityCanvas = document.getElementById('equityChart');
     if (equityCanvas) {
       destroyChartIfAny(equityCanvas);
@@ -145,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
       equityCanvas._chartInstance = chart;
     }
 
-    // Symbol allocation pie
+    // Symbol pie
     const symbolCanvas = document.getElementById('symbolChart');
     if (symbolCanvas) {
       destroyChartIfAny(symbolCanvas);
@@ -176,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
       symbolCanvas._chartInstance = chart;
     }
 
-    // Broker allocation pie
+    // Broker pie
     const brokerCanvas = document.getElementById('brokerChart');
     if (brokerCanvas) {
       destroyChartIfAny(brokerCanvas);
@@ -264,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const sym = trade.symbol ?? '';
       const qty = asNumber(trade.qty, 0);
       const entry = asNumber(trade.entry, 0);
-      const last = asNumber(marketPrices?.[sym], entry);
+      const last = asNumber(marketPrices[sym], entry);
       const value = last * qty;
       invested += entry * qty;
       currentValue += value;
@@ -287,25 +381,6 @@ document.addEventListener('DOMContentLoaded', () => {
     container.innerHTML = '';
     container.appendChild(summary);
   }
-
-  // ========= ✏️ Edit Trade Handler =========
-  window.editTrade = function(index) {
-    const trade = trades[index];
-    const form = document.getElementById('tradeForm');
-    if (!form || !trade) return;
-    form.symbol.value = trade.symbol ?? '';
-    form.qty.value = asNumber(trade.qty, 0);
-    form.entry.value = asNumber(trade.entry, 0);
-    form.date.value = trade.entryDate ?? '';
-    form.exit.value = trade.exit ?? '';
-    form.exitDate.value = trade.exitDate ?? '';
-    form.multiplier.value = trade.multiplier ?? (trade.type === 'option' ? 100 : 1);
-    form.type.value = trade.type ?? 'stock';
-    form.broker.value = trade.broker ?? '';
-    form.tags.value = trade.tags?.join(', ') ?? '';
-    form.dataset.editIndex = String(index);
-    form.scrollIntoView({ behavior: 'smooth' });
-  };
 
   // ========= 📝 Form Submission Handler =========
   const tradeForm = document.getElementById('tradeForm');
@@ -494,14 +569,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ========= 🚀 Initialize Dashboard =========
-  function renderAll() {
+  async function renderAll() {
+    const symbols = trades.map(t => t.symbol);
+    await fetchMarketPrices(symbols);
     renderTrades();
     renderCharts();
     renderTicker();
     renderPL();
     renderPortfolio();
   }
-  renderAll();
+  await renderAll();
 
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
