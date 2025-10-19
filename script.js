@@ -1,5 +1,8 @@
 'use strict';
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // ========= API Key for Alpha Vantage =========
+  const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
+
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
@@ -32,12 +35,29 @@ document.addEventListener('DOMContentLoaded', () => {
     { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
     { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] }
   ];
-  let marketPrices = {
-    AAPL: 144.95,
-    GOOG: 2900,
-    MSFT: 310,
-    TSLA: 950
-  };
+  let marketPrices = {};
+
+  // ========= Fetch Real-Time Prices =========
+  async function fetchMarketPrices(symbols) {
+    const uniqueSymbols = [...new Set(symbols)];
+    const promises = uniqueSymbols.map(async (symbol) => {
+      try {
+        const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+        const data = await response.json();
+        const quote = data['Global Quote'];
+        if (quote && quote['05. price']) {
+          marketPrices[symbol] = asNumber(quote['05. price'], 0);
+        } else {
+          console.warn(`No price data for ${symbol}`);
+          marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0; // Fallback to entry price
+        }
+      } catch (error) {
+        console.error(`Error fetching price for ${symbol}:`, error);
+        marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0; // Fallback to entry price
+      }
+    });
+    await Promise.all(promises);
+  }
 
   // ========= 💰 Helpers =========
   const asNumber = (val, fallback = 0) => {
@@ -143,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveEditedTrade(row, index) {
     const cells = row.querySelectorAll('td');
     const updatedTrade = {
-      symbol: String(cells[0].querySelector('input')?.value || ''), // Ensure symbol is a string
+      symbol: String(cells[0].querySelector('input')?.value || ''),
       qty: asNumber(cells[1].querySelector('input')?.value, 0),
       entry: asNumber(cells[2].querySelector('input')?.value, 0),
       entryDate: cells[3].querySelector('input')?.value || '',
@@ -372,11 +392,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // ========= 📝 Form Submission Handler =========
   const tradeForm = document.getElementById('tradeForm');
   if (tradeForm) {
-    tradeForm.addEventListener('submit', (e) => {
+    tradeForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!tradeForm.symbol || !tradeForm.qty || !tradeForm.entry || !tradeForm.date) return;
       const newTrade = {
-        symbol: String(tradeForm.symbol.value.trim()), // Ensure symbol is a string
+        symbol: String(tradeForm.symbol.value.trim()),
         qty: asNumber(tradeForm.qty.value, 0),
         entry: asNumber(tradeForm.entry.value, 0),
         entryDate: tradeForm.date.value || '',
@@ -396,6 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       tradeForm.reset();
       localStorage.setItem('trades', JSON.stringify(trades));
+      await fetchMarketPrices([newTrade.symbol]); // Fetch price for new symbol
       renderAll();
     });
   }
@@ -404,10 +425,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags,Current Price,P/L\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
       trades.forEach(trade => {
-        const currentPrice = marketPrices[trade.symbol] ? asNumber(marketPrices[trade.symbol], 0) : '';
-        const pl = getPL(trade);
         csv += [
           trade.symbol ?? '',
           asNumber(trade.qty, 0),
@@ -418,9 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
-          trade.tags?.join(';') ?? '',
-          currentPrice,
-          pl
+          trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
       downloadCSV(csv, 'trades.csv');
@@ -432,10 +449,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (exportFilteredBtn) {
     exportFilteredBtn.addEventListener('click', () => {
       const filtered = filterTrades();
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags,Current Price,P/L\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
       filtered.forEach(trade => {
-        const currentPrice = marketPrices[trade.symbol] ? asNumber(marketPrices[trade.symbol], 0) : '';
-        const pl = getPL(trade);
         csv += [
           trade.symbol ?? '',
           asNumber(trade.qty, 0),
@@ -446,9 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
-          trade.tags?.join(';') ?? '',
-          currentPrice,
-          pl
+          trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
       downloadCSV(csv, 'filtered_trades.csv');
@@ -479,15 +492,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (file && file.type === 'text/csv') handleCSVFile(file);
     });
   }
-  function handleCSVFile(file) {
+  async function handleCSVFile(file) {
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const text = event.target.result;
       const lines = text.split('\n').slice(1).filter(line => line.trim());
       const newTrades = lines.map(line => {
-        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags, , ] = line.split(',');
+        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
         return {
-          symbol: String(symbol || ''), // Explicitly cast to string
+          symbol: String(symbol || ''),
           qty: asNumber(qty, 0),
           entry: asNumber(entry, 0),
           entryDate: entryDate || '',
@@ -501,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       trades.push(...newTrades);
       localStorage.setItem('trades', JSON.stringify(trades));
+      await fetchMarketPrices(newTrades.map(t => t.symbol)); // Fetch prices for new symbols
       renderAll();
     };
     reader.readAsText(file);
@@ -568,14 +582,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ========= 🚀 Initialize Dashboard =========
-  function renderAll() {
+  async function renderAll() {
+    const symbols = trades.map(t => t.symbol);
+    await fetchMarketPrices(symbols);
     renderTrades();
     renderCharts();
     renderTicker();
     renderPL();
     renderPortfolio();
   }
-  renderAll();
+  await renderAll();
 
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
