@@ -1,68 +1,66 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading Journal Preview</title>
-  <link rel="stylesheet" href="styles.css" />
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 2rem;
-      background: #f9f9f9;
-      color: #333;
-    }
-    h1 {
-      color: #5DE2E7;
-    }
-    .preview-box {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      padding: 1rem;
-      margin-bottom: 1rem;
-    }
-    .preview-box img {
-      max-width: 100%;
-      border-radius: 4px;
-    }
-    .btn {
-      background: #5DE2E7;
-      color: white;
-      padding: 8px 16px;
-      border: none;
-      border-radius: 4px;
-      text-decoration: none;
-      display: inline-block;
-      margin-top: 1rem;
-    }
-  </style>
+  <title>Trading Journal</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h1>📊 Trading Journal</h1>
-  <div class="preview-box">
-    <p>Track trades, visualize performance, and set price alerts in a modular Progressive Web App.</p>
-    <ul>
-      <li>✅ Add and validate trades</li>
-      <li>📈 Interactive charts</li>
-      <li>🔔 Price alerts</li>
-      <li>🌙 Theme toggle</li>
-      <li>📦 Offline-ready PWA</li>
-    </ul>
-    <a href="index.html" class="btn">Launch App</a>
-  </div>
-  <div class="main">
-  <div class="section chart-container">
-    <canvas id="equity-curve-chart"></canvas>
-  </div>
-  <div class="section chart-container">
-    <canvas id="symbol-pie-chart"></canvas>
-  </div>
-</div>
-  <div class="preview-box">
-    <h2>Preview</h2>
-    <img src="screenshot1.png" alt="Trading Journal Screenshot" />
-  </div>
+  <header class="ticker"><div id="ticker-scroll">Loading market data...</div></header>
+
+  <aside class="sidebar">
+    <h1>📊 Trading Journal</h1>
+    <nav>
+      <ul>
+        <li>Portfolio</li>
+        <li>Trades</li>
+        <li>Alerts</li>
+        <li>Settings</li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main class="dashboard">
+    <section class="trade-entry">
+      <h2>Add New Trade</h2>
+      <form id="tradeForm">
+        <label>Symbol: <input type="text" name="symbol" required /></label>
+        <label>Qty: <input type="number" name="qty" required /></label>
+        <label>Entry Price: <input type="number" name="entry" step="0.01" required /></label>
+        <label>Date: <input type="date" name="date" required /></label>
+        <label>Type:
+          <select name="type">
+            <option value="stock">Stock</option>
+            <option value="option">Option</option>
+            <option value="crypto">Crypto</option>
+          </select>
+        </label>
+        <label>Broker:
+          <select name="broker">
+            <option value="Etrade">Etrade</option>
+            <option value="Schwab">Schwab</option>
+            <option value="Fidelity">Fidelity</option>
+            <option value="Webull">Webull</option>
+            <option value="Robinhood">Robinhood</option>
+          </select>
+        </label>
+        <button type="submit">Add Trade</button>
+      </form>
+    </section>
+
+    <section class="equity-curve"><h2>Equity Curve</h2><canvas id="equityChart"></canvas></section>
+    <section class="symbol-distribution"><h2>Symbol Distribution</h2><canvas id="symbolChart"></canvas></section>
+    <section class="trades-table"><h2>Trades</h2><table><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Date</th><th>Type</th><th>P/L</th><th>Actions</th></tr></thead><tbody id="tradeRows"></tbody></table></section>
+    <section class="alerts"><h2>Recent Alerts</h2><ul><li>AAPL | $150 | Above</li><li>MSFT | $275 | Below</li></ul></section>
+    <section class="risk-analytics"><h2>Risk Analytics</h2><p>Max Drawdown: <span>-5%</span></p><p>Sharpe Ratio: <span>1.5</span></p><p>Win Rate: <span>68%</span></p></section>
+    <section class="profit-loss"><h2>Profit / Loss Summary</h2><table><thead><tr><th>Broker</th><th>Realized</th><th>Unrealized</th></tr></thead><tbody id="plRows"></tbody><tfoot><tr><td>Combined</td><td colspan="2" id="combinedPL"></td></tr></tfoot></table></section>
+  </main>
+
+  <script src="script.js"></script>
 </body>
 </html>
+
 
