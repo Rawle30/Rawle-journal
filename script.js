@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Dark mode toggle
+  // 🌙 Dark Mode Toggle
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
   }
@@ -10,12 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('theme', mode);
   });
 
-  // Sample trades
+  // 📊 Sample Trades
   const trades = [
-    { symbol: 'AAPL', qty: 10, entry: 150, date: '10/12', broker: 'Etrade' },
-    { symbol: 'GOOG', qty: 5, entry: 2800, date: '10/11', broker: 'Schwab' },
-    { symbol: 'MSFT', qty: 12, entry: 300, date: '10/10', broker: 'Fidelity' },
-    { symbol: 'TSLA', qty: 10, entry: 1000, date: '10/14', broker: 'Robinhood' }
+    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', broker: 'Etrade', type: 'stock' },
+    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', broker: 'Schwab', type: 'stock' },
+    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', broker: 'Fidelity', type: 'stock' },
+    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', broker: 'Robinhood', type: 'stock' }
   ];
 
   const marketPrices = {
@@ -25,11 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
     TSLA: 950
   };
 
+  // 📈 Profit/Loss Calculation
   function getPL(trade) {
-    const current = marketPrices[trade.symbol] || trade.entry;
-    return (current - trade.entry) * trade.qty;
+    const price = trade.exit ?? marketPrices[trade.symbol] ?? trade.entry;
+    const multiplier = trade.type === 'option' ? trade.multiplier || 100 : 1;
+    return (price - trade.entry) * trade.qty * multiplier;
   }
 
+  // 📋 Render Trades Table
   function renderTrades() {
     const tbody = document.getElementById('tradeRows');
     tbody.innerHTML = '';
@@ -39,14 +42,15 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${trade.symbol}</td>
         <td>${trade.qty}</td>
         <td>$${trade.entry}</td>
-        <td>${trade.date}</td>
-        <td>-</td>
-        <td><button>Edit</button></td>
+        <td>${trade.entryDate}</td>
+        <td>${trade.exit ?? '-'}</td>
+        <td><button onclick="editTrade(${index})">Edit</button></td>
       `;
       tbody.appendChild(row);
     });
   }
 
+  // 📊 Render Charts
   function renderCharts() {
     new Chart(document.getElementById('equityChart'), {
       type: 'line',
@@ -73,52 +77,102 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // 📰 Render Ticker
   function renderTicker() {
     const ticker = document.getElementById('ticker-scroll');
-    ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${
-function renderTicker() {
-  const ticker = document.getElementById('ticker-scroll');
-  ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${marketPrices.GOOG} | MSFT: $${marketPrices.MSFT} | TSLA: $${marketPrices.TSLA}`;
-}
-
-function renderPL() {
-  const brokers = {};
-  trades.forEach(trade => {
-    const pl = getPL(trade);
-    const broker = trade.broker || 'Unknown';
-    if (!brokers[broker]) {
-      brokers[broker] = { realized: 0, unrealized: 0 };
-    }
-    if (trade.exit) {
-      brokers[broker].realized += pl;
-    } else {
-      brokers[broker].unrealized += pl;
-    }
-  });
-
-  const tbody = document.getElementById('plRows');
-  tbody.innerHTML = '';
-  let totalRealized = 0;
-  let totalUnrealized = 0;
-
-  for (const broker in brokers) {
-    const row = document.createElement('tr');
-    const realized = brokers[broker].realized.toFixed(2);
-    const unrealized = brokers[broker].unrealized.toFixed(2);
-    row.innerHTML = `<td>${broker}</td><td>$${realized}</td><td>$${unrealized}</td>`;
-    tbody.appendChild(row);
-    totalRealized += brokers[broker].realized;
-    totalUnrealized += brokers[broker].unrealized;
+    ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${marketPrices.GOOG} | MSFT: $${marketPrices.MSFT} | TSLA: $${marketPrices.TSLA}`;
   }
 
-  document.getElementById('combinedPL').textContent = `$${(totalRealized + totalUnrealized).toFixed(2)}`;
-}
+  // 💰 Render Profit/Loss Summary
+  function renderPL() {
+    const brokers = {};
+    trades.forEach(trade => {
+      const pl = getPL(trade);
+      const broker = trade.broker || 'Unknown';
+      if (!brokers[broker]) {
+        brokers[broker] = { realized: 0, unrealized: 0 };
+      }
+      if (trade.exit) {
+        brokers[broker].realized += pl;
+      } else {
+        brokers[broker].unrealized += pl;
+      }
+    });
 
-// Initialize dashboard
-renderTrades();
-renderCharts();
-renderTicker();
-renderPL();
+    const tbody = document.getElementById('plRows');
+    tbody.innerHTML = '';
+    let totalRealized = 0;
+    let totalUnrealized = 0;
+
+    for (const broker in brokers) {
+      const row = document.createElement('tr');
+      const realized = brokers[broker].realized.toFixed(2);
+      const unrealized = brokers[broker].unrealized.toFixed(2);
+      row.innerHTML = `<td>${broker}</td><td>$${realized}</td><td>$${unrealized}</td>`;
+      tbody.appendChild(row);
+      totalRealized += brokers[broker].realized;
+      totalUnrealized += brokers[broker].unrealized;
+    }
+
+    document.getElementById('combinedPL').textContent = `$${(totalRealized + totalUnrealized).toFixed(2)}`;
+  }
+
+  // ✏️ Edit Trade Handler
+  window.editTrade = function(index) {
+    const trade = trades[index];
+    const form = document.getElementById('tradeForm');
+
+    form.symbol.value = trade.symbol;
+    form.qty.value = trade.qty;
+    form.entry.value = trade.entry;
+    form.date.value = trade.entryDate;
+    form.exit.value = trade.exit ?? '';
+    form.exitDate.value = trade.exitDate ?? '';
+    form.multiplier.value = trade.multiplier ?? 100;
+    form.type.value = trade.type;
+    form.broker.value = trade.broker;
+
+    form.dataset.editIndex = index;
+    form.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // 📝 Form Submission Handler
+  document.getElementById('tradeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = e.target;
+
+    const newTrade = {
+      symbol: form.symbol.value.trim(),
+      qty: parseFloat(form.qty.value),
+      entry: parseFloat(form.entry.value),
+      entryDate: form.date.value,
+      exit: form.exit.value ? parseFloat(form.exit.value) : null,
+      exitDate: form.exitDate.value || null,
+      multiplier: form.multiplier.value ? parseInt(form.multiplier.value) : 100,
+      type: form.type.value,
+      broker: form.broker.value
+    };
+
+    const editIndex = form.dataset.editIndex;
+    if (editIndex !== undefined) {
+      trades[editIndex] = newTrade;
+      delete form.dataset.editIndex;
+    } else {
+      trades.push(newTrade);
+    }
+
+    form.reset();
+    renderTrades();
+    renderPL();
+    renderCharts();
+  });
+
+  // 🚀 Initialize Dashboard
+  renderTrades();
+  renderCharts();
+  renderTicker();
+  renderPL();
+});
 
 
 
