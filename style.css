@@ -117,6 +117,13 @@ th, td {
   font-weight: bold;
 }
 
+.csv-controls {
+  margin: 1em 0;
+  display: flex;
+  gap: 1em;
+  align-items: center;
+}
+
 .trade-entry form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -164,6 +171,7 @@ body.dark #darkToggle {
   background-color: #444;
   color: #fff;
 }
+
 
 
 
