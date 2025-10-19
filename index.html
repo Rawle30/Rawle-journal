@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trading Journal</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" /> <!-- Added manifest link for PWA -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -13,7 +14,6 @@
     <div id="ticker-scroll">Loading market data...</div>
     <button id="darkToggle">🌙 Toggle Dark Mode</button>
   </header>
-
   <!-- 🔵 Sidebar Navigation -->
   <aside class="sidebar">
     <h1>📊 Trading Journal</h1>
@@ -26,7 +26,6 @@
       </ul>
     </nav>
   </aside>
-
   <!-- 🟡 Main Dashboard -->
   <main class="dashboard">
     <!-- Portfolio Overview -->
@@ -34,17 +33,14 @@
       <h2>Portfolio Overview</h2>
       <div id="portfolio-summary"></div>
     </section>
-
     <!-- Trades Table -->
     <section id="trades-table" style="display:none;">
       <h2>Trades</h2>
-
       <div class="csv-controls">
         <button id="exportCSV">Download CSV</button>
         <button id="exportFiltered">Export Filtered Trades</button>
         <input type="file" id="importCSV" accept=".csv" />
       </div>
-
       <div class="filter-controls">
         <label for="brokerFilter">Broker:</label>
         <select id="brokerFilter">
@@ -55,22 +51,16 @@
           <option value="Webull">Webull</option>
           <option value="Robinhood">Robinhood</option>
         </select>
-
         <label for="symbolSearch">Symbol:</label>
         <input type="text" id="symbolSearch" placeholder="e.g. AAPL" />
-
         <label for="tagFilter">Tag:</label>
         <input type="text" id="tagFilter" placeholder="e.g. swing" />
-
         <label for="startDate">Start:</label>
         <input type="date" id="startDate" />
-
         <label for="endDate">End:</label>
         <input type="date" id="endDate" />
       </div>
-
       <div id="dropZone">📂 Drag & drop CSV file here</div>
-
       <table>
         <thead>
           <tr>
@@ -88,20 +78,17 @@
         </thead>
         <tbody id="tradeRows"></tbody>
       </table>
-
       <p id="tradeCount"></p>
       <div id="tradeSummary"></div>
     </section>
-
     <!-- Alerts -->
     <section id="alerts" style="display:none;">
       <h2>Recent Alerts</h2>
-      <ul>
+      <ul id="alertsList">
         <li>AAPL | $150 | Above</li>
         <li>MSFT | $200 | Below</li>
       </ul>
     </section>
-
     <!-- Settings -->
     <section id="settings" style="display:none;">
       <h2>Settings</h2>
@@ -110,7 +97,6 @@
         Enable Compact Mode
       </label>
     </section>
-
     <!-- Equity Curve Chart -->
     <section class="equity-curve">
       <h2>Equity Curve</h2>
@@ -123,19 +109,16 @@
       </div>
       <canvas id="equityChart"></canvas>
     </section>
-
     <!-- Symbol Distribution Chart -->
     <section class="symbol-distribution">
       <h2>Symbol Distribution</h2>
       <canvas id="symbolChart"></canvas>
     </section>
-
     <!-- Broker Distribution Chart -->
     <section class="broker-distribution">
       <h2>Broker Distribution</h2>
       <canvas id="brokerChart"></canvas>
     </section>
-
     <!-- Risk Analytics -->
     <section class="risk-analytics">
       <h2>Risk Analytics</h2>
@@ -143,7 +126,6 @@
       <p>Sharpe Ratio: <span>1.5</span></p>
       <p>Win Rate: <span>68%</span></p>
     </section>
-
     <!-- Profit / Loss Summary -->
     <section class="profit-loss">
       <h2>Profit / Loss Summary</h2>
@@ -157,7 +139,6 @@
         </tfoot>
       </table>
     </section>
-
     <!-- Add / Edit Trade Form -->
     <section class="trade-entry">
       <h2>Add / Edit Trade</h2>
@@ -190,7 +171,6 @@
       </form>
     </section>
   </main>
-
   <!-- 🧠 App Logic -->
   <script src="script.js"></script>
 </body>
