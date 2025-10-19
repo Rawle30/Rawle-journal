@@ -6,7 +6,6 @@
   --orange: #FE9900;
   --gold: #DFC57B;
 }
-
 body {
   margin: 0;
   font-family: Arial, sans-serif;
@@ -14,7 +13,6 @@ body {
   background-color: #fff;
   color: #000;
 }
-
 .ticker {
   background-color: var(--red);
   color: white;
@@ -22,18 +20,16 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  overflow: hidden; /* Prevent ticker text overflow */
 }
-
 #ticker-scroll {
   white-space: nowrap;
   animation: scroll 20s linear infinite;
 }
-
 @keyframes scroll {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
 }
-
 #darkToggle {
   background-color: var(--blue);
   color: white;
@@ -43,7 +39,9 @@ body {
   cursor: pointer;
   font-size: 0.9em;
 }
-
+#darkToggle:hover {
+  background-color: #4ac0c7; /* Hover effect */
+}
 .sidebar {
   background-color: var(--blue);
   padding: 1em;
@@ -52,29 +50,24 @@ body {
   height: 100%;
   color: black;
 }
-
 .sidebar h1 {
   margin-top: 0;
 }
-
 .sidebar ul {
   list-style: none;
   padding: 0;
 }
-
 .sidebar li {
   margin: 0.8em 0;
   font-weight: bold;
   cursor: pointer;
 }
-
 .sidebar li.active {
   background-color: white;
   color: var(--blue);
   border-radius: 4px;
   padding: 0.25em;
 }
-
 .dashboard {
   margin-left: 220px;
   padding: 0.5em;
@@ -83,37 +76,30 @@ body {
   grid-template-rows: auto auto auto;
   gap: 0.5em;
 }
-
 section {
   background-color: var(--yellow);
   padding: 0.75em;
   border-radius: 8px;
 }
-
 section.active-section {
-  box-shadow: 0 0 0 2px var(--blue);
+  box-shadow: 0 0 0 2px var(--blue); /* Used in JS for active section */
 }
-
 table {
   width: 100%;
   border-collapse: collapse;
 }
-
 th, td {
   padding: 0.4em;
   border-bottom: 1px solid #ccc;
 }
-
 .green {
   color: var(--green);
   font-weight: bold;
 }
-
 .red {
   color: var(--red);
   font-weight: bold;
 }
-
 .csv-controls,
 .filter-controls {
   margin: 0.5em 0;
@@ -122,7 +108,6 @@ th, td {
   gap: 0.5em;
   align-items: center;
 }
-
 input[type="text"],
 input[type="date"],
 input[type="file"],
@@ -132,7 +117,6 @@ select {
   border: 1px solid #ccc;
   font-size: 0.9em;
 }
-
 button {
   font-size: 0.9em;
   padding: 0.4em 0.8em;
@@ -142,7 +126,9 @@ button {
   color: white;
   cursor: pointer;
 }
-
+button:hover {
+  background-color: #4ac0c7; /* Hover effect for all buttons */
+}
 #dropZone {
   border: 2px dashed #ccc;
   padding: 0.75em;
@@ -151,46 +137,38 @@ button {
   background-color: #f9f9f9;
   color: #666;
 }
-
 #dropZone.dragover {
   border-color: var(--blue);
   background-color: #e0f7ff;
   color: var(--blue);
 }
-
 .trade-entry form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 0.5em;
 }
-
 .trade-entry label {
   display: flex;
   flex-direction: column;
   font-weight: bold;
 }
-
 .trade-entry button {
   grid-column: span 2;
   margin-top: 0.5em;
 }
-
 ul {
   padding-left: 1.2em;
 }
-
 canvas {
   display: block;
   max-width: 100%;
 }
-
 .equity-curve canvas,
 .symbol-distribution canvas,
 .broker-distribution canvas {
   width: 100%;
-  height: 150px !important;
+  height: 30vh; /* Relative height for responsiveness */
 }
-
 td[data-broker]::before {
   content: attr(data-broker);
   background-color: var(--blue);
@@ -200,85 +178,73 @@ td[data-broker]::before {
   border-radius: 4px;
   margin-right: 0.5em;
 }
-
 /* 🌙 Dark Mode */
 body.dark {
   background-color: #121212;
   color: #f0f0f0;
 }
-
 body.dark .sidebar,
 body.dark section,
 body.dark table {
   background-color: #1e1e1e;
   color: #f0f0f0;
 }
-
 body.dark th, body.dark td {
   border-color: #444;
 }
-
 body.dark .ticker {
   background-color: #333;
   color: #fff;
 }
-
 body.dark #darkToggle {
   background-color: #444;
   color: #fff;
 }
-
+body.dark #darkToggle:hover {
+  background-color: #555;
+}
 body.dark #dropZone {
   background-color: #222;
   border-color: #555;
   color: #ccc;
 }
-
 body.dark #dropZone.dragover {
   background-color: #333;
   border-color: var(--blue);
   color: var(--blue);
 }
-
 body.dark input,
 body.dark select {
   background-color: #2a2a2a;
   color: #f0f0f0;
   border: 1px solid #555;
 }
-
 /* 🧱 Compact Mode */
 body.compact .dashboard {
   gap: 0.25em;
 }
-
 body.compact section {
   padding: 0.5em;
 }
-
 body.compact .csv-controls,
 body.compact .filter-controls {
   margin: 0.25em 0;
   gap: 0.25em;
 }
-
 body.compact .trade-entry form {
   gap: 0.25em;
 }
-
 /* 📱 Responsive Layout */
 @media (max-width: 900px) {
   .dashboard {
     grid-template-columns: 1fr 1fr;
   }
 }
-
 @media (max-width: 600px) {
   .dashboard {
     grid-template-columns: 1fr;
     margin-left: 0;
   }
-
   .sidebar {
     position: static;
     width: 100%;
@@ -286,9 +252,7 @@ body.compact .trade-entry form {
     justify-content: space-between;
     align-items: center;
   }
-
   .trade-entry form {
     grid-template-columns: 1fr;
   }
 }
-
