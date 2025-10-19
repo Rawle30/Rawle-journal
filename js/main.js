@@ -1,109 +1,236 @@
-import { normalizeTrade, validateTrade } from './data.js';
-import { loadTrades, saveTrades, readCachedPrice } from './storage.js';
-import { fetchFromAlphaVantage, fetchFromCoinbase, fetchFromYahoo, isCrypto } from './api.js';
-import { initEquityCurveChart, updateEquityCurve, initSymbolPieChart, updateSymbolPieChart } from './charts.js';
-import { showToast, clearForm, applySavedTheme } from './ui.js';
-import { addAlert, checkAlerts, renderAlerts } from './alerts.js';
+// main.js
 
-let trades = [];
+import { initUI, refreshCharts } from './ui.js';
+import { showToast } from './ui-utils.js';
+import { addAlert, renderAlerts, checkAlerts } from './alerts.js';
 
-document.addEventListener('DOMContentLoaded', async () => {
-  applySavedTheme();
+// Prefer a unified getPrice if your api.js exports it; fall back to fetchQuotes mock.
+let getPrice = null;
+let fetchQuotes = null;
+(async () => {
+  try {
+    const api = await import('./api.js');
+    getPrice = api.getPrice || null;
+    fetchQuotes = api.fetchQuotes || null;
+  } catch (e) {
+    console.warn('api.js not found or failed to load:', e);
+  }
+})();
 
-  trades = loadTrades();
-  renderTrades();
-  renderAlerts();
+// ----------------------- PWA: Service Worker -----------------------
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
 
-  const equityCtx = document.getElementById('equity-curve-chart').getContext('2d');
-  const pieCtx = document.getElementById('symbol-pie-chart').getContext('2d');
-  initEquityCurveChart(equityCtx);
-  initSymbolPieChart(pieCtx);
-  updateCharts();
+  navigator.serviceWorker
+    .register('./service-worker.js')
+    .then(reg => {
+      console.log('✅ SW registered:', reg.scope);
 
-  registerServiceWorker();
+      // Listen for updates
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
 
-  document.getElementById('trade-form').addEventListener('submit', handleTradeSubmit);
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed') {
+            // If there's a controller, this is an update
+            if (navigator.serviceWorker.controller) {
+              // Optional: show a toast with a quick-refresh option
+              showToast('New version available. Refresh to update.', 'info', 4000);
+              // If you want to auto-activate immediately, uncomment:
+              // newWorker.postMessage('SKIP_WAITING');
+            } else {
+              showToast('App ready for offline use.', 'success', 2500);
+            }
+          }
+        });
+      });
+    })
+    .catch(err => console.error('SW registration failed:', err));
+
+  // When the new SW takes control
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    console.log('🔁 New service worker is active.');
+  });
+}
+
+// Optional helper to trigger skipWaiting from UI (e.g., a “Update” button)
+export function activateUpdateNow() {
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage('SKIP_WAITING');
+  }
+}
+
+// ----------------------- PWA: Install Prompt -----------------------
+let deferredPrompt = null;
+
+function setupInstallPrompt() {
+  const installBtn = document.getElementById('installBtn');
+  if (installBtn) installBtn.style.display = 'none';
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (installBtn) {
+      installBtn.style.display = 'inline-block';
+      installBtn.addEventListener('click', async () => {
+        try {
+          installBtn.disabled = true;
+          deferredPrompt.prompt();
+          await deferredPrompt.userChoice;
+        } finally {
+          deferredPrompt = null;
+          installBtn.style.display = 'none';
+          installBtn.disabled = false;
+        }
+      }, { once: true });
+    }
+  });
+}
+
+// ----------------------- Alerts UI Wiring -----------------------
+function wireAlertForm() {
+  const addBtn = document.getElementById('addAlertBtn');
+  if (!addBtn) return;
+
+  addBtn.addEventListener('click', () => {
+    const sym = (document.getElementById('alertSymbol')?.value || '').trim();
+    const thr = (document.getElementById('alertThreshold')?.value || '').trim();
+    const cond = (document.getElementById('alertCondition')?.value || 'above').trim();
+
+    if (!sym || !thr || isNaN(Number(thr))) {
+      showToast('Please enter a valid symbol and price.', 'error');
+      return;
+    }
+    addAlert(sym, Number(thr), cond);
+    renderAlerts();
+    showToast('Alert added', 'success');
+  });
+}
+
+// ----------------------- Price Polling -----------------------
+let pollTimer = null;
+let pollIntervalMs = 15_000; // 15s default; adjust as desired
+
+function collectSymbolsForPolling() {
+  // Collect from table second column (Symbol)
+  const symbols = new Set(
+    Array.from(document.querySelectorAll('#plTable tbody tr td:nth-child(2)'))
+      .map(td => td.textContent.trim())
+      .filter(Boolean)
+  );
+
+  // Also include any alert symbols
+  const alertItems = Array.from(document.querySelectorAll('#alertsList .alert-item'));
+  alertItems.forEach(li => {
+    const match = li.textContent.trim().match(/^([A-Z0-9.\-_/]+)/);
+    if (match) symbols.add(match[1]);
+  });
+
+  // Fallback demo set if empty
+  if (symbols.size === 0) ['AAPL', 'TSLA', 'NVDA'].forEach(s => symbols.add(s));
+
+  return Array.from(symbols);
+}
+
+async function pollPricesOnce() {
+  try {
+    const symbols = collectSymbolsForPolling();
+
+    // Strategy A: getPrice per symbol (serial with small concurrency to stay kind to APIs)
+    if (typeof getPrice === 'function') {
+      const prices = {};
+      for (const sym of symbols) {
+        try {
+          prices[sym] = await getPrice(sym);
+        } catch (e) {
+          // swallow individual errors; leave symbol undefined
+        }
+      }
+      // Alerts + charts refresh
+      checkAlerts(prices);
+      refreshCharts();
+      return;
+    }
+
+    // Strategy B: fetchQuotes batch (mock/demo)
+    if (typeof fetchQuotes === 'function') {
+      const prices = await fetchQuotes(symbols);
+      checkAlerts(prices);
+      refreshCharts();
+      return;
+    }
+
+    // No API available
+    console.warn('No price API available. Skipping polling.');
+  } catch (err) {
+    console.warn('Price polling failed:', err);
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  pollPricesOnce(); // kick off immediately
+  pollTimer = setInterval(() => {
+    if (document.hidden) return; // be kind while tab hidden
+    pollPricesOnce();
+  }, pollIntervalMs);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+// Pause when hidden; resume when visible
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  // On resume, do an immediate poll
+  pollPricesOnce();
 });
 
-function renderTrades() {
-  const container = document.getElementById('trade-list');
-  if (!container) return;
-  container.innerHTML = '';
-  trades.forEach(trade => {
-    const div = document.createElement('div');
-    div.className = 'trade-item';
-    div.textContent = `${trade.symbol} @ ${trade.entry} x ${trade.qty}`;
-    container.appendChild(div);
+// ----------------------- Timeframe Handling -----------------------
+function handleTimeframeChanges() {
+  window.addEventListener('timeframechange', (e) => {
+    const range = e.detail?.range || 'ALL';
+    // In a real app, you’d re-query or re-filter data by range here.
+    // For now, just refresh charts (they’ll use whatever data is loaded).
+    refreshCharts();
+    showToast(`Timeframe: ${range}`, 'info');
   });
 }
 
-async function handleTradeSubmit(e) {
-  e.preventDefault();
-  const form = e.target;
-  const formData = new FormData(form);
-  const rawTrade = Object.fromEntries(formData.entries());
-  const trade = normalizeTrade(rawTrade);
-
-  if (!validateTrade(trade)) {
-    showToast('Invalid trade data', 'error');
-    return;
-  }
-
-  trades.push(trade);
-  saveTrades(trades);
-  renderTrades();
-  updateCharts();
-  clearForm(form.id);
-  showToast('Trade saved', 'success');
+// ----------------------- Online/Offline UX -----------------------
+function wireConnectivityToasts() {
+  window.addEventListener('online', () => showToast('Back online', 'success'));
+  window.addEventListener('offline', () => showToast('You are offline', 'warn'));
 }
 
-async function updateCharts() {
-  const equityData = trades.map(t => ({
-    date: t.date,
-    value: t.qty * t.entry * t.multiplier
-  }));
+// ----------------------- Bootstrap -----------------------
+document.addEventListener('DOMContentLoaded', () => {
+  // Core UI (tables, charts, theme)
+  initUI();
 
-  const symbolMap = {};
-  trades.forEach(t => {
-    const val = t.qty * t.entry * t.multiplier;
-    symbolMap[t.symbol] = (symbolMap[t.symbol] || 0) + val;
-  });
+  // PWA bits
+  registerServiceWorker();
+  setupInstallPrompt();
 
-  const pieData = Object.entries(symbolMap).map(([symbol, value]) => ({ symbol, value }));
+  // UI features
+  wireAlertForm();
+  wireConnectivityToasts();
+  handleTimeframeChanges();
 
-  updateEquityCurve(equityData);
-  updateSymbolPieChart(pieData);
+  // Start price polling
+  startPolling();
+});
 
-  const prices = {};
-  for (const trade of trades) {
-    const cached = readCachedPrice(trade.symbol, true);
-    if (cached) {
-      prices[trade.symbol] = cached.price;
-      continue;
-    }
+// Optional: expose controls for debugging in console
+window.__app = {
+  startPolling,
+  stopPolling,
+  pollPricesOnce,
+  activateUpdateNow
+};
 
-    try {
-      const price = isCrypto(trade.symbol)
-        ? await fetchFromCoinbase(trade.symbol)
-        : await fetchFromAlphaVantage(trade.symbol);
-      prices[trade.symbol] = price;
-    } catch {
-      try {
-        const fallback = await fetchFromYahoo(trade.symbol);
-        prices[trade.symbol] = fallback;
-      } catch {
-        console.warn(`Price fetch failed for ${trade.symbol}`);
-      }
-    }
-  }
-
-  checkAlerts(prices);
-}
-
-function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js')
-      .then(reg => console.log('✅ Service Worker registered:', reg.scope))
-      .catch(err => console.error('❌ Service Worker registration failed:', err));
-  }
-}
