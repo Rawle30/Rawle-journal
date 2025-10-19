@@ -104,7 +104,7 @@ table {
   flex-grow: 1;
 }
 #trades-table table {
-  min-width: 1000px;
+  min-width: 1200px; /* Increased width for trades table */
 }
 .profit-loss table {
   min-width: 400px;
@@ -355,7 +355,7 @@ body.compact .table-container {
     max-height: 130px;
   }
   #trades-table table {
-    min-width: 800px;
+    min-width: 900px; /* Adjusted for medium screens */
   }
   .profit-loss table {
     min-width: 350px;
@@ -394,7 +394,7 @@ body.compact .table-container {
     max-height: 120px;
   }
   #trades-table table {
-    min-width: 600px;
+    min-width: 700px; /* Adjusted for mobile */
   }
   .profit-loss table {
     min-width: 300px;
@@ -403,4 +403,5 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+
 
