@@ -1,28 +1,16 @@
-/* script.js — Trading Dashboard Module
-   - Fixes syntax error in form handler (duplicate/stray "exitDate: form")
-   - Adds null-guards for missing DOM elements
-   - Normalizes currency formatting and number parsing
-   - Keeps global edit handler via window.editTrade
-*/
-
-'use strict';
-
 document.addEventListener('DOMContentLoaded', () => {
-  // ========= 🌙 Theme Toggle =========
+  // 🌙 Theme Toggle
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
   }
 
-  const darkToggle = document.getElementById('darkToggle');
-  if (darkToggle) {
-    darkToggle.addEventListener('click', () => {
-      document.body.classList.toggle('dark');
-      const mode = document.body.classList.contains('dark') ? 'dark' : 'light';
-      localStorage.setItem('theme', mode);
-    });
-  }
+  document.getElementById('darkToggle').addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    const mode = document.body.classList.contains('dark') ? 'dark' : 'light';
+    localStorage.setItem('theme', mode);
+  });
 
-  // ========= 📊 Trade Data =========
+  // 📊 Trade Data
   const trades = [
     { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', broker: 'Etrade', type: 'stock' },
     { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', broker: 'Schwab', type: 'stock' },
@@ -37,68 +25,41 @@ document.addEventListener('DOMContentLoaded', () => {
     TSLA: 950
   };
 
-  // ========= 💰 Helpers =========
-  const fmtUSD = (n) => {
-    const v = Number(n);
-    return isFinite(v) ? `$${v.toFixed(2)}` : '$0.00';
-  };
-
+  // 💰 Helpers
   function formatPL(value) {
-    const v = Number(value) || 0;
-    const color = v >= 0 ? 'green' : 'red';
-    return `<span class="${color}">${fmtUSD(v)}</span>`;
+    const color = value >= 0 ? 'green' : 'red';
+    return `<span class="${color}">$${value.toFixed(2)}</span>`;
   }
 
   function getPL(trade) {
-    const last = (trade.exit ?? marketPrices[trade.symbol] ?? trade.entry);
-    const multiplier = trade.type === 'option' ? (trade.multiplier || 100) : 1;
-    return (Number(last) - Number(trade.entry)) * Number(trade.qty) * Number(multiplier);
+    const price = trade.exit ?? marketPrices[trade.symbol] ?? trade.entry;
+    const multiplier = trade.type === 'option' ? trade.multiplier || 100 : 1;
+    return (price - trade.entry) * trade.qty * multiplier;
   }
 
-  const asNumber = (val, fallback = null) => {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : fallback;
-  };
-
-  // ========= 📋 Render Trades =========
+  // 📋 Render Trades
   function renderTrades() {
     const tbody = document.getElementById('tradeRows');
-    if (!tbody) return;
-
     tbody.innerHTML = '';
     trades.forEach((trade, index) => {
       const row = document.createElement('tr');
-      const exitCell =
-        trade.exit == null ? '-' : fmtUSD(asNumber(trade.exit, 0));
-
       row.innerHTML = `
         <td>${trade.symbol}</td>
         <td>${trade.qty}</td>
-        <td>${fmtUSD(trade.entry)}</td>
+        <td>$${trade.entry}</td>
         <td>${trade.entryDate}</td>
-        <td>${exitCell}</td>
-        <td><button type="button" class="btn btn-sm btn-outline-primary" data-index="${index}">Edit</button></td>
+        <td>${trade.exit ?? '-'}</td>
+        <td><button onclick="editTrade(${index})">Edit</button></td>
       `;
-      // prefer addEventListener over inline onclick for robustness
-      const btn = row.querySelector('button');
-      if (btn) {
-        btn.addEventListener('click', () => window.editTrade(index));
-      }
-
       tbody.appendChild(row);
     });
   }
 
-  // ========= 📈 Render Charts =========
+  // 📈 Render Charts
   function renderCharts() {
-    // Equity chart
     const equityCanvas = document.getElementById('equityChart');
-    if (equityCanvas && typeof Chart !== 'undefined') {
-      // Destroy existing chart if re-rendering
-      if (equityCanvas._chartInstance) {
-        equityCanvas._chartInstance.destroy();
-      }
-      const equityChart = new Chart(equityCanvas, {
+    if (equityCanvas) {
+      new Chart(equityCanvas, {
         type: 'line',
         data: {
           labels: ['Oct 1', 'Oct 5', 'Oct 10', 'Oct 15', 'Oct 20', 'Oct 24'],
@@ -106,36 +67,19 @@ document.addEventListener('DOMContentLoaded', () => {
             label: 'Equity',
             data: [60000, 64000, 67000, 72000, 76000, 78000],
             borderColor: '#7DDA58',
-            borderWidth: 2,
-            pointRadius: 2,
-            fill: false,
-            tension: 0.25
+            fill: false
           }]
         },
         options: {
           responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: true, position: 'top' },
-            tooltip: { mode: 'index', intersect: false }
-          },
-          interaction: { mode: 'nearest', intersect: false },
-          scales: {
-            x: { grid: { display: false } },
-            y: { ticks: { callback: (v) => `$${v}` } }
-          }
+          maintainAspectRatio: false
         }
       });
-      equityCanvas._chartInstance = equityChart;
     }
 
-    // Symbol allocation pie
     const symbolCanvas = document.getElementById('symbolChart');
-    if (symbolCanvas && typeof Chart !== 'undefined') {
-      if (symbolCanvas._chartInstance) {
-        symbolCanvas._chartInstance.destroy();
-      }
-      const symbolChart = new Chart(symbolCanvas, {
+    if (symbolCanvas) {
+      new Chart(symbolCanvas, {
         type: 'pie',
         data: {
           labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
@@ -149,33 +93,23 @@ document.addEventListener('DOMContentLoaded', () => {
           maintainAspectRatio: true,
           aspectRatio: 1.5,
           plugins: {
-            legend: { position: 'bottom' }
+            legend: {
+              position: 'bottom'
+            }
           }
         }
       });
-      symbolCanvas._chartInstance = symbolChart;
     }
   }
 
-  // ========= 📰 Render Ticker =========
+  // 📰 Render Ticker
   function renderTicker() {
     const ticker = document.getElementById('ticker-scroll');
-    if (!ticker) return;
-    const parts = [
-      `AAPL: ${fmtUSD(marketPrices.AAPL)}`,
-      `GOOG: ${fmtUSD(marketPrices.GOOG)}`,
-      `MSFT: ${fmtUSD(marketPrices.MSFT)}`,
-      `TSLA: ${fmtUSD(marketPrices.TSLA)}`
-    ];
-    ticker.textContent = parts.join(' | ');
+    ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${marketPrices.GOOG} | MSFT: $${marketPrices.MSFT} | TSLA: $${marketPrices.TSLA}`;
   }
 
-  // ========= 📊 Render P/L by Broker =========
+  // 📊 Render P/L by Broker
   function renderPL() {
-    const tbody = document.getElementById('plRows');
-    const combinedPL = document.getElementById('combinedPL');
-    if (!tbody || !combinedPL) return;
-
     const brokers = {};
     trades.forEach(trade => {
       const pl = getPL(trade);
@@ -183,41 +117,34 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!brokers[broker]) {
         brokers[broker] = { realized: 0, unrealized: 0 };
       }
-      if (trade.exit != null && trade.exit !== '') {
+      if (trade.exit) {
         brokers[broker].realized += pl;
       } else {
         brokers[broker].unrealized += pl;
       }
     });
 
+    const tbody = document.getElementById('plRows');
     tbody.innerHTML = '';
     let totalRealized = 0;
     let totalUnrealized = 0;
 
-    Object.keys(brokers).forEach(broker => {
-      const realizedRaw = brokers[broker].realized;
-      const unrealizedRaw = brokers[broker].unrealized;
-
+    for (const broker in brokers) {
+      const realized = formatPL(brokers[broker].realized);
+      const unrealized = formatPL(brokers[broker].unrealized);
       const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${broker}</td>
-        <td>${formatPL(realizedRaw)}</td>
-        <td>${formatPL(unrealizedRaw)}</td>
-      `;
+      row.innerHTML = `<td>${broker}</td><td>${realized}</td><td>${unrealized}</td>`;
       tbody.appendChild(row);
+      totalRealized += brokers[broker].realized;
+      totalUnrealized += brokers[broker].unrealized;
+    }
 
-      totalRealized += realizedRaw;
-      totalUnrealized += unrealizedRaw;
-    });
-
-    combinedPL.innerHTML = formatPL(totalRealized + totalUnrealized);
+    document.getElementById('combinedPL').innerHTML = formatPL(totalRealized + totalUnrealized);
   }
 
-  // ========= 🧮 Render Portfolio Summary =========
+  // 🧮 Render Portfolio Summary
   function renderPortfolio() {
     const container = document.getElementById('portfolio');
-    if (!container) return;
-
     const summary = document.createElement('div');
 
     const symbols = {};
@@ -226,9 +153,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     trades.forEach(trade => {
       const symbol = trade.symbol;
-      const qty = Number(trade.qty) || 0;
-      const entry = Number(trade.entry) || 0;
-      const price = asNumber(marketPrices[symbol], entry);
+      const qty = trade.qty;
+      const entry = trade.entry;
+      const price = marketPrices[symbol] ?? entry;
       const value = price * qty;
 
       invested += entry * qty;
@@ -243,84 +170,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const netPL = currentValue - invested;
 
-    const holdingsList = Object.entries(symbols)
-      .map(([sym, data]) => {
-        // Using plain value display, and PL formatting for net figure only
-        return `<li>${sym}: ${data.qty} shares (${fmtUSD(data.value)})</li>`;
-      })
-      .join('');
-
     summary.innerHTML = `
       <p><strong>Total Positions:</strong> ${trades.length}</p>
-      <p><strong>Total Invested:</strong> ${fmtUSD(invested)}</p>
-      <p><strong>Current Value:</strong> ${fmtUSD(currentValue)}</p>
+      <p><strong>Total Invested:</strong> $${invested.toFixed(2)}</p>
+      <p><strong>Current Value:</strong> $${currentValue.toFixed(2)}</p>
       <p><strong>Unrealized P/L:</strong> ${formatPL(netPL)}</p>
       <h3>Holdings by Symbol:</h3>
-      <ul>${holdingsList}</ul>
+      <ul>
+        ${Object.entries(symbols).map(([sym, data]) =>
+          `<li>${sym}: ${data.qty} shares (${formatPL(data.value)})</li>`).join('')}
+      </ul>
     `;
 
     container.innerHTML = '';
     container.appendChild(summary);
   }
 
-  // ========= ✏️ Edit Trade Handler =========
+  // ✏️ Edit Trade Handler
   window.editTrade = function(index) {
     const trade = trades[index];
     const form = document.getElementById('tradeForm');
-    if (!form || !trade) return;
 
-    if (form.symbol) form.symbol.value = trade.symbol ?? '';
-    if (form.qty) form.qty.value = trade.qty ?? '';
-    if (form.entry) form.entry.value = trade.entry ?? '';
-    if (form.date) form.date.value = trade.entryDate ?? '';
-    if (form.exit) form.exit.value = trade.exit ?? '';
-    if (form.exitDate) form.exitDate.value = trade.exitDate ?? '';
-    if (form.multiplier) form.multiplier.value = trade.multiplier ?? (trade.type === 'option' ? 100 : 1);
-    if (form.type) form.type.value = trade.type ?? 'stock';
-    if (form.broker) form.broker.value = trade.broker ?? '';
+    form.symbol.value = trade.symbol;
+    form.qty.value = trade.qty;
+    form.entry.value = trade.entry;
+    form.date.value = trade.entryDate;
+    form.exit.value = trade.exit ?? '';
+    form.exitDate.value = trade.exitDate ?? '';
+    form.multiplier.value = trade.multiplier ?? 100;
+    form.type.value = trade.type;
+    form.broker.value = trade.broker;
 
-    form.dataset.editIndex = String(index);
-    if (form.scrollIntoView) {
-      form.scrollIntoView({ behavior: 'smooth' });
-    }
+    form.dataset.editIndex = index;
+    form.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // ========= 📝 Form Submission Handler =========
-  const tradeForm = document.getElementById('tradeForm');
-  if (tradeForm) {
-    tradeForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      const form = e.target;
+  // 📝 Form Submission Handler
+  document.getElementById('tradeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = e.target;
 
-      const newTrade = {
-        symbol: (form.symbol?.value || '').trim(),
-        qty: asNumber(form.qty?.value, 0),
-        entry: asNumber(form.entry?.value, 0),
-        entryDate: form.date?.value || '',
-        exit: form.exit?.value ? asNumber(form.exit.value, null) : null,
-        exitDate: form.exitDate?.value || null,
-        multiplier: form.multiplier?.value ? parseInt(form.multiplier.value, 10) : (form.type?.value === 'option' ? 100 : 1),
-        type: form.type?.value || 'stock',
-        broker: form.broker?.value || ''
-      };
+    const newTrade = {
+      symbol: form.symbol.value.trim(),
+      qty: parseFloat(form.qty.value),
+      entry: parseFloat(form.entry.value),
+      entryDate: form.date.value,
+      exit: form.exit.value ? parseFloat(form.exit.value) : null,
+      exitDate: form.exitDate.value || null,
+      multiplier: form.multiplier.value ? parseInt(form.multiplier.value) : 100,
+      type: form.type.value,
+      broker: form.broker.value
+    };
 
-      const editIndex = form.dataset.editIndex;
-      if (editIndex !== undefined && editIndex !== null) {
-        trades[Number(editIndex)] = newTrade;
-        delete form.dataset.editIndex;
-      } else {
-        trades.push(newTrade);
-      }
+    const editIndex = form.dataset.editIndex;
+    if (editIndex !== undefined) {
+      trades[editIndex] = newTrade;
+      delete form.dataset.editIndex;
+    } else {
+      trades.push(newTrade);
+    }
 
-      if (form.reset) form.reset();
-      renderTrades();
-      renderPL();
-      renderCharts();
-      renderPortfolio();
-    });
-  }
+    form.reset();
+    renderTrades();
+    renderPL();
+    renderCharts();
+    renderPortfolio();
+  });
 
-  // ========= 🧭 Sidebar Navigation =========
+  // 🧭 Sidebar Navigation
   document.querySelectorAll('.sidebar li').forEach(item => {
     item.addEventListener('click', () => {
       const targetId = item.dataset.target;
@@ -339,39 +256,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ========= 📤 Export Trades to CSV =========
+  // 📤 Export Trades to CSV
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
       let csv = 'Symbol,Qty,Entry,Date,Exit\n';
       trades.forEach(trade => {
-        csv += [
-          trade.symbol,
-          trade.qty,
-          trade.entry,
-          trade.entryDate,
-          (trade.exit ?? '')
-        ].join(',') + '\n';
+        csv += `${trade.symbol},${trade.qty},${trade.entry},${trade.entryDate},${trade.exit ?? ''}\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = 'trades.csv';
-      document.body.appendChild(link);
       link.click();
-      link.remove();
     });
   }
 
-  // ========= 🚀 Initialize Dashboard =========
+  // 🚀 Initialize Dashboard
   renderTrades();
   renderCharts();
   renderTicker();
   renderPL();
   renderPortfolio();
 });
-
 
 
 
