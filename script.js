@@ -154,14 +154,35 @@ function deleteTrade(index) {
 document.getElementById('tradeForm').addEventListener('submit', function(e) {
   e.preventDefault();
   const form = e.target;
+
   const newTrade = {
     symbol: form.symbol.value.trim(),
     qty: parseFloat(form.qty.value),
     entry: parseFloat(form.entry.value),
-    date: form.date.value,
+    entryDate: form.date.value,
+    exit: form.exit.value ? parseFloat(form.exit.value) : null,
+    exitDate: form.exitDate.value || null,
+    multiplier: form.multiplier.value ? parseInt(form.multiplier.value) : 100,
     type: form.type.value,
     broker: form.broker.value
   };
+
+  const editIndex = form.dataset.editIndex;
+  if (editIndex !== undefined) {
+    trades[editIndex] = newTrade;
+    delete form.dataset.editIndex;
+  } else {
+    trades.push(newTrade);
+  }
+
+  marketPrices[newTrade.symbol] = newTrade.entry;
+  form.reset();
+  saveTrades();
+  renderTrades();
+  renderPL();
+  renderCharts();
+});
+
 document.getElementById('tradeFilter').addEventListener('change', function(e) {
   const filter = e.target.value;
   let filteredTrades = trades;
