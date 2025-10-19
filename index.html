@@ -25,32 +25,48 @@
 
   <main class="dashboard">
     <section class="trade-entry">
-      <h2>Add New Trade</h2>
-      <form id="tradeForm">
-        <label>Symbol: <input type="text" name="symbol" required /></label>
-        <label>Qty: <input type="number" name="qty" required /></label>
-        <label>Entry Price: <input type="number" name="entry" step="0.01" required /></label>
-        <label>Date: <input type="date" name="date" required /></label>
-        <label>Type:
-          <select name="type">
-            <option value="stock">Stock</option>
-            <option value="option">Option</option>
-            <option value="crypto">Crypto</option>
-          </select>
-        </label>
-        <label>Broker:
-          <select name="broker">
-            <option value="Etrade">Etrade</option>
-            <option value="Schwab">Schwab</option>
-            <option value="Fidelity">Fidelity</option>
-            <option value="Webull">Webull</option>
-            <option value="Robinhood">Robinhood</option>
-          </select>
-        </label>
-        <button type="submit">Add Trade</button>
-      </form>
-    </section>
-
+  <h2>Add New Trade</h2>
+  <form id="tradeForm">
+    <label>Symbol:
+      <input type="text" name="symbol" required />
+    </label>
+    <label>Qty:
+      <input type="number" name="qty" required />
+    </label>
+    <label>Entry Price:
+      <input type="number" name="entry" step="0.01" required />
+    </label>
+    <label>Entry Date:
+      <input type="date" name="date" required />
+    </label>
+    <label>Exit Price:
+      <input type="number" name="exit" step="0.01" />
+    </label>
+    <label>Exit Date:
+      <input type="date" name="exitDate" />
+    </label>
+    <label>Multiplier (Options only):
+      <input type="number" name="multiplier" value="100" />
+    </label>
+    <label>Type:
+      <select name="type">
+        <option value="stock">Stock</option>
+        <option value="option">Option</option>
+        <option value="crypto">Crypto</option>
+      </select>
+    </label>
+    <label>Broker:
+      <select name="broker">
+        <option value="Etrade">Etrade</option>
+        <option value="Schwab">Schwab</option>
+        <option value="Fidelity">Fidelity</option>
+        <option value="Webull">Webull</option>
+        <option value="Robinhood">Robinhood</option>
+      </select>
+    </label>
+    <button type="submit">Add Trade</button>
+  </form>
+</section>
     <section class="equity-curve"><h2>Equity Curve</h2><canvas id="equityChart"></canvas></section>
     <section class="symbol-distribution"><h2>Symbol Distribution</h2><canvas id="symbolChart"></canvas></section>
     <section class="trades-table"><h2>Trades</h2><table><thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Date</th><th>Type</th><th>P/L</th><th>Actions</th></tr></thead><tbody id="tradeRows"></tbody></table></section>
