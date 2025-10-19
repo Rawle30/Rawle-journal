@@ -62,6 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
           borderColor: '#7DDA58',
           fill: false
         }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
       }
     });
 
@@ -73,6 +77,10 @@ document.addEventListener('DOMContentLoaded', () => {
           data: [1500, 4500, 9600, 3000],
           backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
         }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
       }
     });
   }
@@ -172,21 +180,35 @@ document.addEventListener('DOMContentLoaded', () => {
     item.addEventListener('click', () => {
       const targetId = item.dataset.target;
 
-      // Toggle active tab
       document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
       item.classList.add('active');
 
-      // Hide all dashboard sections
       document.querySelectorAll('main section').forEach(sec => {
         sec.style.display = 'none';
       });
 
-      // Show target section
       const targetSection = document.getElementById(targetId);
       if (targetSection) {
         targetSection.style.display = 'block';
       }
     });
+  });
+
+  // 📤 Export Trades Table to CSV
+  document.getElementById('exportCSV')?.addEventListener('click', () => {
+    const rows = document.querySelectorAll('#tradeRows tr');
+    let csv = 'Symbol,Qty,Entry,Date,Exit\n';
+    rows.forEach(row => {
+      const cols = row.querySelectorAll('td');
+      const data = Array.from(cols).slice(0, 5).map(td => td.textContent.trim());
+      csv += data.join(',') + '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'trades.csv';
+    link.click();
   });
 
   // 🚀 Initialize Dashboard
