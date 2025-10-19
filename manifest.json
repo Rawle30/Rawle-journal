@@ -1,0 +1,23 @@
+{
+  "name": "Trading Journal",
+  "short_name": "Journal",
+  "description": "Track trades, visualize performance, and set alerts in a modular PWA.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#5DE2E7",
+  "orientation": "portrait",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
