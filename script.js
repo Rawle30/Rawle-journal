@@ -44,16 +44,21 @@ document.addEventListener('DOMContentLoaded', () => {
     TSLA: 950
   };
 
-  function formatPL(value) {
-    const color = value >= 0 ? 'green' : 'red';
-    return `<span class="${color}">$${value.toFixed(2)}</span>`;
-  }
+function formatPL(value) {
+  const num = Number(value);
+  if (!isFinite(num)) return `<span class="gray">$0.00</span>`;
+  const color = num >= 0 ? 'green' : 'red';
+  return `<span class="${color}">$${num.toFixed(2)}</span>`;
+}
 
-  function getPL(trade) {
-    const price = trade.exit ?? marketPrices[trade.symbol] ?? trade.entry;
-    const multiplier = trade.type === 'option' ? trade.multiplier || 100 : 1;
-    return (price - trade.entry) * trade.qty * multiplier;
-  }
+
+function getPL(trade) {
+  const entry = Number(trade.entry) || 0;
+  const price = Number(trade.exit ?? marketPrices[trade.symbol] ?? entry);
+  const multiplier = trade.type === 'option' ? (Number(trade.multiplier) || 100) : 1;
+  return (price - entry) * (Number(trade.qty) || 0) * multiplier;
+}
+
 
   function saveTrades() {
     localStorage.setItem('trades', JSON.stringify(trades));
