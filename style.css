@@ -1,0 +1,95 @@
+/* style.css */
+:root {
+  --red: #E4080A;
+  --green: #7DDA58;
+  --yellow: #FFDE59;
+  --blue: #5DE2E7;
+  --orange: #FE9900;
+  --gold: #DFC57B;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.ticker {
+  background-color: var(--red);
+  color: white;
+  padding: 0.5em;
+  overflow: hidden;
+}
+
+#ticker-scroll {
+  white-space: nowrap;
+  animation: scroll 20s linear infinite;
+}
+
+@keyframes scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.sidebar {
+  background-color: var(--blue);
+  padding: 1em;
+  width: 200px;
+  position: fixed;
+  height: 100%;
+  color: black;
+}
+
+.dashboard {
+  margin-left: 220px;
+  padding: 1em;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: auto auto auto;
+  gap: 1em;
+  background-color: #fdfdfd;
+}
+
+section {
+  background-color: var(--yellow);
+  padding: 1em;
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 0.5em;
+  border-bottom: 1px solid #ccc;
+}
+
+.green { color: var(--green); }
+.red { color: var(--red); }
+
+.trade-entry form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1em;
+}
+
+.trade-entry label {
+  display: flex;
+  flex-direction: column;
+  font-weight: bold;
+}
+
+.trade-entry button {
+  grid-column: span 2;
+  padding: 0.5em;
+  background-color: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+
