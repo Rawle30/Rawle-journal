@@ -21,20 +21,27 @@ function getPL(trade) {
   return (current - trade.entry) * trade.qty;
 }
 
-function renderTrades() {
+function renderTrades(filtered = trades) {
   const tbody = document.getElementById('tradeRows');
   tbody.innerHTML = '';
-  trades.forEach((trade, index) => {
+
+  filtered.forEach((trade, index) => {
     const pl = getPL(trade);
     const plClass = pl >= 0 ? 'green' : 'red';
+    const status = trade.exit ? 'Closed' : 'Open';
+    const statusClass = trade.exit ? 'status-closed' : 'status-open';
+
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${trade.symbol}</td>
       <td>${trade.qty}</td>
       <td>$${trade.entry}</td>
-      <td>${trade.date}</td>
+      <td>${trade.exit ?? '-'}</td>
+      <td>${trade.entryDate}</td>
+      <td>${trade.exitDate ?? '-'}</td>
       <td>${trade.type}</td>
       <td><span class="${plClass}">${pl.toFixed(2)}</span></td>
+      <td><span class="${statusClass}">${status}</span></td>
       <td>
         <button onclick="editTrade(${index})">Edit</button>
         <button onclick="deleteTrade(${index})">Delete</button>
@@ -43,6 +50,7 @@ function renderTrades() {
     tbody.appendChild(row);
   });
 }
+
 
 function renderPL() {
   const tbody = document.getElementById('plRows');
