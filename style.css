@@ -106,5 +106,33 @@ th, td {
   padding: 2px 6px;
   border-radius: 4px;
 }
+.trade-entry {
+  grid-column: span 3;
+  background-color: var(--gold);
+  padding: 1em;
+  border-radius: 8px;
+}
+
+.trade-entry form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1em;
+}
+
+.trade-entry label {
+  display: flex;
+  flex-direction: column;
+  font-weight: bold;
+}
+
+.trade-entry button {
+  grid-column: span 2;
+  padding: 0.5em;
+  background-color: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
 
 
