@@ -41,19 +41,32 @@
 
       <div class="csv-controls">
         <button id="exportCSV">Download CSV</button>
+        <button id="exportFiltered">Export Filtered Trades</button>
         <input type="file" id="importCSV" accept=".csv" />
       </div>
 
       <div class="filter-controls">
-        <label for="brokerFilter">Filter by Broker:</label>
+        <label for="brokerFilter">Broker:</label>
         <select id="brokerFilter">
-          <option value="all">All Brokers</option>
+          <option value="all">All</option>
           <option value="Etrade">Etrade</option>
           <option value="Schwab">Schwab</option>
           <option value="Fidelity">Fidelity</option>
           <option value="Webull">Webull</option>
           <option value="Robinhood">Robinhood</option>
         </select>
+
+        <label for="symbolSearch">Symbol:</label>
+        <input type="text" id="symbolSearch" placeholder="e.g. AAPL" />
+
+        <label for="tagFilter">Tag:</label>
+        <input type="text" id="tagFilter" placeholder="e.g. swing" />
+
+        <label for="startDate">Start:</label>
+        <input type="date" id="startDate" />
+
+        <label for="endDate">End:</label>
+        <input type="date" id="endDate" />
       </div>
 
       <div id="dropZone">📂 Drag & drop CSV file here</div>
@@ -75,6 +88,9 @@
         </thead>
         <tbody id="tradeRows"></tbody>
       </table>
+
+      <p id="tradeCount"></p>
+      <div id="tradeSummary"></div>
     </section>
 
     <!-- Alerts -->
@@ -89,12 +105,22 @@
     <!-- Settings -->
     <section id="settings" style="display:none;">
       <h2>Settings</h2>
-      <p>Dark mode, preferences, etc.</p>
+      <label>
+        <input type="checkbox" id="compactToggle" />
+        Enable Compact Mode
+      </label>
     </section>
 
     <!-- Equity Curve Chart -->
     <section class="equity-curve">
       <h2>Equity Curve</h2>
+      <div class="chart-controls">
+        <label for="chartType">Chart Type:</label>
+        <select id="chartType">
+          <option value="line">Line</option>
+          <option value="bar">Bar</option>
+        </select>
+      </div>
       <canvas id="equityChart"></canvas>
     </section>
 
@@ -102,6 +128,12 @@
     <section class="symbol-distribution">
       <h2>Symbol Distribution</h2>
       <canvas id="symbolChart"></canvas>
+    </section>
+
+    <!-- Broker Distribution Chart -->
+    <section class="broker-distribution">
+      <h2>Broker Distribution</h2>
+      <canvas id="brokerChart"></canvas>
     </section>
 
     <!-- Risk Analytics -->
@@ -153,6 +185,7 @@
             <option value="Robinhood">Robinhood</option>
           </select>
         </label>
+        <label>Tags (comma-separated): <input type="text" name="tags" /></label>
         <button type="submit">Save Trade</button>
       </form>
     </section>
@@ -162,7 +195,6 @@
   <script src="script.js"></script>
 </body>
 </html>
-
 
 
 
