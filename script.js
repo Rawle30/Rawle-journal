@@ -1,35 +1,32 @@
-/* script.js — Hardened Trading Dashboard Module
-   - Guards all .toFixed() via Number() + Number.isFinite()
-   - Defensive DOM queries, safe event wiring
-   - Idempotent Chart.js renders (destroy before recreate)
-   - Robust parsing in getPL, portfolio/tables, and ticker
-*/
-
 'use strict';
-
 document.addEventListener('DOMContentLoaded', () => {
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
   }
-
   const darkToggle = document.getElementById('darkToggle');
   if (darkToggle) {
     darkToggle.addEventListener('click', () => {
       document.body.classList.toggle('dark');
-      const mode = document.body.classList.contains('dark') ? 'dark' : 'light';
-      localStorage.setItem('theme', mode);
+      localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    });
+  }
+
+  // ========= 🧱 Compact Mode Toggle =========
+  const compactToggle = document.getElementById('compactToggle');
+  if (compactToggle) {
+    compactToggle.addEventListener('change', () => {
+      document.body.classList.toggle('compact', compactToggle.checked);
     });
   }
 
   // ========= 📊 Trade Data (sample) =========
   const trades = [
-    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', broker: 'Etrade', type: 'stock' },
-    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', broker: 'Schwab', type: 'stock' },
-    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', broker: 'Fidelity', type: 'stock' },
-    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', broker: 'Robinhood', type: 'stock' }
+    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
+    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] },
+    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
+    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] }
   ];
-
   const marketPrices = {
     AAPL: 144.95,
     GOOG: 2900,
@@ -42,84 +39,89 @@ document.addEventListener('DOMContentLoaded', () => {
     const n = Number(val);
     return Number.isFinite(n) ? n : fallback;
   };
-
   const fmtUSD = (val) => {
-    const n = Number(val);
-    return Number.isFinite(n) ? `$${n.toFixed(2)}` : '$0.00';
+    const n = asNumber(val);
+    return `$${n.toFixed(2)}`;
   };
-
-  function formatPL(value) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return `<span class="gray">$0.00</span>`;
+  const formatPL = (value) => {
+    const n = asNumber(value);
     const color = n >= 0 ? 'green' : 'red';
     return `<span class="${color}">${fmtUSD(n)}</span>`;
-  }
-
-  function getPL(trade) {
+  };
+  const getPL = (trade) => {
     const entry = asNumber(trade.entry, 0);
     const mkt = marketPrices?.[trade.symbol];
     const price = asNumber(trade.exit ?? mkt ?? entry, entry);
     const qty = asNumber(trade.qty, 0);
     const multiplier = trade.type === 'option' ? asNumber(trade.multiplier, 100) : 1;
     return (price - entry) * qty * multiplier;
-  }
+  };
 
   // ========= 📋 Render Trades =========
-  function renderTrades() {
+  function renderTrades(filteredTrades = trades) {
     const tbody = document.getElementById('tradeRows');
-    if (!tbody) return;
-
+    const tradeCount = document.getElementById('tradeCount');
+    if (!tbody || !tradeCount) return;
     tbody.innerHTML = '';
-    trades.forEach((trade, index) => {
+    filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
-      const exitCell = trade.exit == null ? '-' : fmtUSD(asNumber(trade.exit, 0));
-
       row.innerHTML = `
         <td>${trade.symbol ?? ''}</td>
         <td>${asNumber(trade.qty, 0)}</td>
         <td>${fmtUSD(asNumber(trade.entry, 0))}</td>
         <td>${trade.entryDate ?? ''}</td>
-        <td>${exitCell}</td>
+        <td>${trade.exit == null ? '-' : fmtUSD(asNumber(trade.exit, 0))}</td>
+        <td>${trade.exitDate ?? '-'}</td>
+        <td>${trade.multiplier ?? (trade.type === 'option' ? 100 : 1)}</td>
+        <td>${trade.type ?? 'stock'}</td>
+        <td data-broker="${trade.broker ?? ''}">${trade.broker ?? ''}</td>
         <td><button type="button" class="btn btn-sm btn-outline-primary">Edit</button></td>
       `;
-
       const btn = row.querySelector('button');
       if (btn) btn.addEventListener('click', () => window.editTrade(index));
-
       tbody.appendChild(row);
     });
+    tradeCount.textContent = `Total Trades: ${filteredTrades.length}`;
   }
 
   // ========= 📈 Render Charts =========
   function destroyChartIfAny(canvas) {
-    if (canvas && canvas._chartInstance && typeof canvas._chartInstance.destroy === 'function') {
+    if (canvas?._chartInstance?.destroy) {
       canvas._chartInstance.destroy();
       canvas._chartInstance = null;
     }
   }
-
   function renderCharts() {
-    if (typeof Chart === 'undefined') return;
+    if (typeof Chart === 'undefined') {
+      console.warn('Chart.js not loaded');
+      return;
+    }
+    const chartTypeSelect = document.getElementById('chartType');
+    const chartType = chartTypeSelect?.value || 'line';
 
-    // Equity chart
+    // Equity chart (derived from trades)
     const equityCanvas = document.getElementById('equityChart');
     if (equityCanvas) {
       destroyChartIfAny(equityCanvas);
-      const data = [60000, 64000, 67000, 72000, 76000, 78000].map(v => asNumber(v, 0));
-      const labels = ['Oct 1', 'Oct 5', 'Oct 10', 'Oct 15', 'Oct 20', 'Oct 24'];
-
+      const sortedTrades = [...trades].sort((a, b) => new Date(a.entryDate) - new Date(b.entryDate));
+      const dates = [...new Set(sortedTrades.map(t => t.entryDate))];
+      const equityData = dates.map(date => {
+        const dailyTrades = sortedTrades.filter(t => t.entryDate <= date);
+        return dailyTrades.reduce((sum, t) => sum + getPL(t), 0);
+      });
       const chart = new Chart(equityCanvas, {
-        type: 'line',
+        type: chartType,
         data: {
-          labels,
+          labels: dates,
           datasets: [{
             label: 'Equity',
-            data,
+            data: equityData,
             borderColor: '#7DDA58',
+            backgroundColor: chartType === 'bar' ? '#7DDA58' : 'transparent',
             borderWidth: 2,
-            pointRadius: 2,
-            fill: false,
-            tension: 0.25
+            pointRadius: chartType === 'line' ? 2 : 0,
+            fill: chartType === 'bar',
+            tension: chartType === 'line' ? 0.25 : 0
           }]
         },
         options: {
@@ -130,19 +132,13 @@ document.addEventListener('DOMContentLoaded', () => {
             tooltip: {
               mode: 'index',
               intersect: false,
-              callbacks: {
-                label: (ctx) => ` ${fmtUSD(ctx.parsed.y)}`
-              }
+              callbacks: { label: (ctx) => ` ${fmtUSD(ctx.parsed.y)}` }
             }
           },
           interaction: { mode: 'nearest', intersect: false },
           scales: {
             x: { grid: { display: false } },
-            y: {
-              ticks: {
-                callback: (v) => fmtUSD(v)
-              }
-            }
+            y: { ticks: { callback: (v) => fmtUSD(v) } }
           }
         }
       });
@@ -153,14 +149,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const symbolCanvas = document.getElementById('symbolChart');
     if (symbolCanvas) {
       destroyChartIfAny(symbolCanvas);
-      const data = [1500, 4500, 9600, 3000].map(v => asNumber(v, 0));
-
+      const symbols = {};
+      trades.forEach(t => {
+        const value = getPL(t);
+        symbols[t.symbol] = (symbols[t.symbol] || 0) + value;
+      });
       const chart = new Chart(symbolCanvas, {
         type: 'pie',
         data: {
-          labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
+          labels: Object.keys(symbols),
           datasets: [{
-            data,
+            data: Object.values(symbols),
             backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
           }]
         },
@@ -170,15 +169,43 @@ document.addEventListener('DOMContentLoaded', () => {
           aspectRatio: 1.5,
           plugins: {
             legend: { position: 'bottom' },
-            tooltip: {
-              callbacks: {
-                label: (ctx) => ` ${ctx.label}: ${fmtUSD(ctx.parsed)}`
-              }
-            }
+            tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${fmtUSD(ctx.parsed)}` } }
           }
         }
       });
       symbolCanvas._chartInstance = chart;
+    }
+
+    // Broker allocation pie
+    const brokerCanvas = document.getElementById('brokerChart');
+    if (brokerCanvas) {
+      destroyChartIfAny(brokerCanvas);
+      const brokers = {};
+      trades.forEach(t => {
+        const value = getPL(t);
+        const broker = t.broker || 'Unknown';
+        brokers[broker] = (brokers[broker] || 0) + value;
+      });
+      const chart = new Chart(brokerCanvas, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(brokers),
+          datasets: [{
+            data: Object.values(brokers),
+            backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900', '#DFC57B']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 1.5,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${fmtUSD(ctx.parsed)}` } }
+          }
+        }
+      });
+      brokerCanvas._chartInstance = chart;
     }
   }
 
@@ -186,13 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderTicker() {
     const el = document.getElementById('ticker-scroll');
     if (!el) return;
-
-    const parts = [
-      `AAPL: ${fmtUSD(marketPrices?.AAPL)}`,
-      `GOOG: ${fmtUSD(marketPrices?.GOOG)}`,
-      `MSFT: ${fmtUSD(marketPrices?.MSFT)}`,
-      `TSLA: ${fmtUSD(marketPrices?.TSLA)}`
-    ];
+    const parts = Object.entries(marketPrices).map(([sym, price]) => `${sym}: ${fmtUSD(price)}`);
     el.textContent = parts.join(' | ');
   }
 
@@ -201,27 +222,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const tbody = document.getElementById('plRows');
     const combined = document.getElementById('combinedPL');
     if (!tbody || !combined) return;
-
     const brokers = {};
     trades.forEach(trade => {
       const pl = asNumber(getPL(trade), 0);
-      const broker = (trade.broker || 'Unknown').toString();
+      const broker = trade.broker || 'Unknown';
       if (!brokers[broker]) brokers[broker] = { realized: 0, unrealized: 0 };
-      if (trade.exit != null && trade.exit !== '') {
+      if (trade.exit != null) {
         brokers[broker].realized += pl;
       } else {
         brokers[broker].unrealized += pl;
       }
     });
-
     tbody.innerHTML = '';
     let totalRealized = 0;
     let totalUnrealized = 0;
-
     Object.keys(brokers).forEach(broker => {
       const realized = asNumber(brokers[broker].realized, 0);
       const unrealized = asNumber(brokers[broker].unrealized, 0);
-
       const row = document.createElement('tr');
       row.innerHTML = `
         <td>${broker}</td>
@@ -229,11 +246,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${formatPL(unrealized)}</td>
       `;
       tbody.appendChild(row);
-
       totalRealized += realized;
       totalUnrealized += unrealized;
     });
-
     combined.innerHTML = formatPL(totalRealized + totalUnrealized);
   }
 
@@ -241,34 +256,26 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderPortfolio() {
     const container = document.getElementById('portfolio');
     if (!container) return;
-
     const summary = document.createElement('div');
-
     const symbols = {};
     let invested = 0;
     let currentValue = 0;
-
     trades.forEach(trade => {
       const sym = trade.symbol ?? '';
       const qty = asNumber(trade.qty, 0);
       const entry = asNumber(trade.entry, 0);
       const last = asNumber(marketPrices?.[sym], entry);
       const value = last * qty;
-
       invested += entry * qty;
       currentValue += value;
-
       if (!symbols[sym]) symbols[sym] = { qty: 0, value: 0 };
       symbols[sym].qty += qty;
       symbols[sym].value += value;
     });
-
     const netPL = currentValue - invested;
-
     const holdings = Object.entries(symbols)
       .map(([sym, data]) => `<li>${sym}: ${asNumber(data.qty, 0)} shares (${fmtUSD(asNumber(data.value, 0))})</li>`)
       .join('');
-
     summary.innerHTML = `
       <p><strong>Total Positions:</strong> ${trades.length}</p>
       <p><strong>Total Invested:</strong> ${fmtUSD(invested)}</p>
@@ -277,7 +284,6 @@ document.addEventListener('DOMContentLoaded', () => {
       <h3>Holdings by Symbol:</h3>
       <ul>${holdings}</ul>
     `;
-
     container.innerHTML = '';
     container.appendChild(summary);
   }
@@ -287,19 +293,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const trade = trades[index];
     const form = document.getElementById('tradeForm');
     if (!form || !trade) return;
-
-    if (form.symbol) form.symbol.value = trade.symbol ?? '';
-    if (form.qty) form.qty.value = asNumber(trade.qty, 0);
-    if (form.entry) form.entry.value = asNumber(trade.entry, 0);
-    if (form.date) form.date.value = trade.entryDate ?? '';
-    if (form.exit) form.exit.value = trade.exit ?? '';
-    if (form.exitDate) form.exitDate.value = trade.exitDate ?? '';
-    if (form.multiplier) form.multiplier.value = trade.multiplier ?? (trade.type === 'option' ? 100 : 1);
-    if (form.type) form.type.value = trade.type ?? 'stock';
-    if (form.broker) form.broker.value = trade.broker ?? '';
-
+    form.symbol.value = trade.symbol ?? '';
+    form.qty.value = asNumber(trade.qty, 0);
+    form.entry.value = asNumber(trade.entry, 0);
+    form.date.value = trade.entryDate ?? '';
+    form.exit.value = trade.exit ?? '';
+    form.exitDate.value = trade.exitDate ?? '';
+    form.multiplier.value = trade.multiplier ?? (trade.type === 'option' ? 100 : 1);
+    form.type.value = trade.type ?? 'stock';
+    form.broker.value = trade.broker ?? '';
+    form.tags.value = trade.tags?.join(', ') ?? '';
     form.dataset.editIndex = String(index);
-    if (form.scrollIntoView) form.scrollIntoView({ behavior: 'smooth' });
+    form.scrollIntoView({ behavior: 'smooth' });
   };
 
   // ========= 📝 Form Submission Handler =========
@@ -307,84 +312,201 @@ document.addEventListener('DOMContentLoaded', () => {
   if (tradeForm) {
     tradeForm.addEventListener('submit', (e) => {
       e.preventDefault();
-      const form = e.target;
-
+      if (!tradeForm.symbol || !tradeForm.qty || !tradeForm.entry || !tradeForm.date) return;
       const newTrade = {
-        symbol: (form.symbol?.value || '').trim(),
-        qty: asNumber(form.qty?.value, 0),
-        entry: asNumber(form.entry?.value, 0),
-        entryDate: form.date?.value || '',
-        exit: form.exit?.value ? asNumber(form.exit.value, null) : null,
-        exitDate: form.exitDate?.value || null,
-        multiplier: form.multiplier?.value
-          ? asNumber(form.multiplier.value, 1)
-          : (form.type?.value === 'option' ? 100 : 1),
-        type: form.type?.value || 'stock',
-        broker: form.broker?.value || ''
+        symbol: tradeForm.symbol.value.trim(),
+        qty: asNumber(tradeForm.qty.value, 0),
+        entry: asNumber(tradeForm.entry.value, 0),
+        entryDate: tradeForm.date.value || '',
+        exit: tradeForm.exit.value ? asNumber(tradeForm.exit.value, null) : null,
+        exitDate: tradeForm.exitDate.value || null,
+        multiplier: tradeForm.multiplier.value ? asNumber(tradeForm.multiplier.value, 1) : (tradeForm.type.value === 'option' ? 100 : 1),
+        type: tradeForm.type.value || 'stock',
+        broker: tradeForm.broker.value || '',
+        tags: tradeForm.tags.value ? tradeForm.tags.value.split(',').map(t => t.trim()) : []
       };
-
-      const idx = form.dataset.editIndex;
+      const idx = tradeForm.dataset.editIndex;
       if (idx !== undefined && idx !== null) {
         trades[Number(idx)] = newTrade;
-        delete form.dataset.editIndex;
+        delete tradeForm.dataset.editIndex;
       } else {
         trades.push(newTrade);
       }
-
-      if (form.reset) form.reset();
-      renderTrades();
-      renderPL();
-      renderCharts();
-      renderPortfolio();
+      tradeForm.reset();
+      renderAll();
     });
   }
-
-  // ========= 🧭 Sidebar Navigation =========
-  document.querySelectorAll('.sidebar li').forEach(item => {
-    item.addEventListener('click', () => {
-      const targetId = item.dataset.target;
-
-      document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
-      item.classList.add('active');
-
-      document.querySelectorAll('main section').forEach(sec => {
-        sec.style.display = 'none';
-      });
-
-      const target = document.getElementById(targetId);
-      if (target) target.style.display = 'block';
-    });
-  });
 
   // ========= 📤 Export Trades to CSV =========
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Date,Exit\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
       trades.forEach(trade => {
         csv += [
           trade.symbol ?? '',
           asNumber(trade.qty, 0),
           asNumber(trade.entry, 0),
           trade.entryDate ?? '',
-          trade.exit == null ? '' : asNumber(trade.exit, 0)
+          trade.exit == null ? '' : asNumber(trade.exit, 0),
+          trade.exitDate ?? '',
+          trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
+          trade.type ?? 'stock',
+          trade.broker ?? '',
+          trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
-
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'trades.csv';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      downloadCSV(csv, 'trades.csv');
     });
   }
 
+  // ========= 📤 Export Filtered Trades =========
+  const exportFilteredBtn = document.getElementById('exportFiltered');
+  if (exportFilteredBtn) {
+    exportFilteredBtn.addEventListener('click', () => {
+      const filtered = filterTrades();
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      filtered.forEach(trade => {
+        csv += [
+          trade.symbol ?? '',
+          asNumber(trade.qty, 0),
+          asNumber(trade.entry, 0),
+          trade.entryDate ?? '',
+          trade.exit == null ? '' : asNumber(trade.exit, 0),
+          trade.exitDate ?? '',
+          trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
+          trade.type ?? 'stock',
+          trade.broker ?? '',
+          trade.tags?.join(';') ?? ''
+        ].join(',') + '\n';
+      });
+      downloadCSV(csv, 'filtered_trades.csv');
+    });
+  }
+
+  // ========= 📥 Import CSV =========
+  const importCSV = document.getElementById('importCSV');
+  if (importCSV) {
+    importCSV.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleCSVFile(file);
+    });
+  }
+  const dropZone = document.getElementById('dropZone');
+  if (dropZone) {
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === 'text/csv') handleCSVFile(file);
+    });
+  }
+  function handleCSVFile(file) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const lines = text.split('\n').slice(1).filter(line => line.trim());
+      const newTrades = lines.map(line => {
+        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
+        return {
+          symbol: symbol || '',
+          qty: asNumber(qty, 0),
+          entry: asNumber(entry, 0),
+          entryDate: entryDate || '',
+          exit: exit ? asNumber(exit, null) : null,
+          exitDate: exitDate || null,
+          multiplier: asNumber(multiplier, type === 'option' ? 100 : 1),
+          type: type || 'stock',
+          broker: broker || '',
+          tags: tags ? tags.split(';').map(t => t.trim()) : []
+        };
+      });
+      trades.push(...newTrades);
+      renderAll();
+    };
+    reader.readAsText(file);
+  }
+
+  // ========= 🔍 Filter Trades =========
+  function filterTrades() {
+    const brokerFilter = document.getElementById('brokerFilter')?.value || 'all';
+    const symbolSearch = document.getElementById('symbolSearch')?.value.toUpperCase().trim() || '';
+    const tagFilter = document.getElementById('tagFilter')?.value.toLowerCase().trim() || '';
+    const startDate = document.getElementById('startDate')?.value || '';
+    const endDate = document.getElementById('endDate')?.value || '';
+    return trades.filter(trade => {
+      const matchesBroker = brokerFilter === 'all' || trade.broker === brokerFilter;
+      const matchesSymbol = !symbolSearch || trade.symbol.toUpperCase().includes(symbolSearch);
+      const matchesTag = !tagFilter || trade.tags?.some(t => t.toLowerCase().includes(tagFilter));
+      const matchesStart = !startDate || trade.entryDate >= startDate;
+      const matchesEnd = !endDate || trade.entryDate <= endDate;
+      return matchesBroker && matchesSymbol && matchesTag && matchesStart && matchesEnd;
+    });
+  }
+  const filterInputs = ['brokerFilter', 'symbolSearch', 'tagFilter', 'startDate', 'endDate'];
+  filterInputs.forEach(id => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.addEventListener('input', () => renderTrades(filterTrades()));
+    }
+  });
+
+  // ========= 📈 Chart Type Toggle =========
+  const chartTypeSelect = document.getElementById('chartType');
+  if (chartTypeSelect) {
+    chartTypeSelect.addEventListener('change', () => renderCharts());
+  }
+
+  // ========= 🧭 Sidebar Navigation =========
+  document.querySelectorAll('.sidebar li').forEach(item => {
+    item.addEventListener('click', () => {
+      const targetId = item.dataset.target;
+      document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('main section').forEach(sec => {
+        sec.style.display = 'none';
+        sec.classList.remove('active-section');
+      });
+      const target = document.getElementById(targetId);
+      if (target) {
+        target.style.display = 'block';
+        target.classList.add('active-section');
+      }
+    });
+  });
+
+  // ========= 🛠️ Utility: Download CSV =========
+  function downloadCSV(content, filename) {
+    const blob = new Blob([content], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   // ========= 🚀 Initialize Dashboard =========
-  renderTrades();
-  renderCharts();
-  renderTicker();
-  renderPL();
-  renderPortfolio();
+  function renderAll() {
+    renderTrades();
+    renderCharts();
+    renderTicker();
+    renderPL();
+    renderPortfolio();
+  }
+  renderAll();
+
+  // ========= 🌐 Service Worker Registration =========
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log('Service Worker registered'))
+      .catch(err => console.error('Service Worker registration failed:', err));
+  }
 });
