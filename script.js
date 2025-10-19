@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // 🌙 Theme Toggle
+  // 🌙 Dark Mode Toggle
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
   }
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('theme', mode);
   });
 
-  // 📊 Trade Data
+  // 📊 Sample Trades
   const trades = [
     { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', broker: 'Etrade', type: 'stock' },
     { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', broker: 'Schwab', type: 'stock' },
@@ -25,19 +25,20 @@ document.addEventListener('DOMContentLoaded', () => {
     TSLA: 950
   };
 
-  // 💰 Helpers
+  // 🔢 Format P/L with color
   function formatPL(value) {
     const color = value >= 0 ? 'green' : 'red';
     return `<span class="${color}">$${value.toFixed(2)}</span>`;
   }
 
+  // 📈 Calculate P/L
   function getPL(trade) {
     const price = trade.exit ?? marketPrices[trade.symbol] ?? trade.entry;
     const multiplier = trade.type === 'option' ? trade.multiplier || 100 : 1;
     return (price - trade.entry) * trade.qty * multiplier;
   }
 
-  // 📋 Render Trades
+  // 📋 Render Trades Table
   function renderTrades() {
     const tbody = document.getElementById('tradeRows');
     tbody.innerHTML = '';
@@ -55,51 +56,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 📈 Render Charts
+  // 📊 Render Charts
   function renderCharts() {
-    const equityCanvas = document.getElementById('equityChart');
-    if (equityCanvas) {
-      new Chart(equityCanvas, {
-        type: 'line',
-        data: {
-          labels: ['Oct 1', 'Oct 5', 'Oct 10', 'Oct 15', 'Oct 20', 'Oct 24'],
-          datasets: [{
-            label: 'Equity',
-            data: [60000, 64000, 67000, 72000, 76000, 78000],
-            borderColor: '#7DDA58',
-            fill: false
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false
-        }
-      });
-    }
+    new Chart(document.getElementById('equityChart'), {
+      type: 'line',
+      data: {
+        labels: ['Oct 1', 'Oct 5', 'Oct 10', 'Oct 15', 'Oct 20', 'Oct 24'],
+        datasets: [{
+          label: 'Equity',
+          data: [60000, 64000, 67000, 72000, 76000, 78000],
+          borderColor: '#7DDA58',
+          fill: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
 
-    const symbolCanvas = document.getElementById('symbolChart');
-    if (symbolCanvas) {
-      new Chart(symbolCanvas, {
-        type: 'pie',
-        data: {
-          labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
-          datasets: [{
-            data: [1500, 4500, 9600, 3000],
-            backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          aspectRatio: 1.5,
-          plugins: {
-            legend: {
-              position: 'bottom'
-            }
-          }
-        }
-      });
-    }
+    new Chart(document.getElementById('symbolChart'), {
+      type: 'pie',
+      data: {
+        labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
+        datasets: [{
+          data: [1500, 4500, 9600, 3000],
+          backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
   }
 
   // 📰 Render Ticker
@@ -108,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${marketPrices.GOOG} | MSFT: $${marketPrices.MSFT} | TSLA: $${marketPrices.TSLA}`;
   }
 
-  // 📊 Render P/L by Broker
+  // 💰 Render Profit/Loss Summary
   function renderPL() {
     const brokers = {};
     trades.forEach(trade => {
@@ -142,11 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('combinedPL').innerHTML = formatPL(totalRealized + totalUnrealized);
   }
 
-  // 🧮 Render Portfolio Summary
+  // 📈 Render Portfolio Overview
   function renderPortfolio() {
-    const container = document.getElementById('portfolio');
-    const summary = document.createElement('div');
-
+    const container = document.getElementById('portfolio-summary');
     const symbols = {};
     let invested = 0;
     let currentValue = 0;
@@ -170,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const netPL = currentValue - invested;
 
-    summary.innerHTML = `
+    container.innerHTML = `
       <p><strong>Total Positions:</strong> ${trades.length}</p>
       <p><strong>Total Invested:</strong> $${invested.toFixed(2)}</p>
       <p><strong>Current Value:</strong> $${currentValue.toFixed(2)}</p>
@@ -181,9 +168,6 @@ document.addEventListener('DOMContentLoaded', () => {
           `<li>${sym}: ${data.qty} shares (${formatPL(data.value)})</li>`).join('')}
       </ul>
     `;
-
-    container.innerHTML = '';
-    container.appendChild(summary);
   }
 
   // ✏️ Edit Trade Handler
@@ -237,14 +221,13 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPortfolio();
   });
 
-  // 🧭 Sidebar Navigation
+  // 🧭 Sidebar Tab Navigation
   document.querySelectorAll('.sidebar li').forEach(item => {
     item.addEventListener('click', () => {
       const targetId = item.dataset.target;
 
       document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
       item.classList.add('active');
-
       document.querySelectorAll('main section').forEach(sec => {
         sec.style.display = 'none';
       });
@@ -256,13 +239,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 📤 Export Trades to CSV
+  // 📤 Export Trades Table to CSV
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Date,Exit\n';
+      let csv = 'Symbol,Qty,Entry,Date,Exit,ExitDate,Multiplier,Type,Broker\n';
       trades.forEach(trade => {
-        csv += `${trade.symbol},${trade.qty},${trade.entry},${trade.entryDate},${trade.exit ?? ''}\n`;
+        csv += `${trade.symbol},${trade.qty},${trade.entry},${trade.entryDate},${trade.exit ?? ''},${trade.exitDate ?? ''},${trade.multiplier ?? 100},${trade.type},${trade.broker}\n`;
       });
 
       const blob = new Blob([csv], { type: 'text/csv' });
@@ -273,6 +256,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // 📥 Import Trades from CSV
+  const importInput = document.getElementById('importCSV');
+  if (importInput) {
+    importInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const lines = event.target.result.split('\n').filter(line => line.trim());
+        const headers = lines[0].split(',').map(h => h.trim());
+        const newTrades = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim());
+          if (values.length < 9) continue;
+
+          const trade = {
+            symbol: values[0],
+            qty: parseFloat(values[1]),
+            entry: parseFloat(values[2]),
+            entryDate: values[3],
+            exit: values[4] ? parseFloat(values[4]) : null,
+            exitDate: values[5] || null,
+            multiplier: values[6] ? parseInt(values[6]) : 100,
+            type: values[7],
+            broker: values[8]
+          };
+
+          newTrades.push(trade);
+        }
+
+        trades.length = 0;
+        trades.push(...newTrades);
+        renderTrades();
+        renderPL();
+        renderCharts();
+        renderPortfolio();
+      };
+
+      reader.readAsText(file);
+    });
+  }
+
   // 🚀 Initialize Dashboard
   renderTrades();
   renderCharts();
@@ -280,6 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPL();
   renderPortfolio();
 });
+
 
 
 
