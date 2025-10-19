@@ -77,24 +77,29 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    const symbolCanvas = document.getElementById('symbolChart');
-    if (symbolCanvas) {
-      new Chart(symbolCanvas, {
-        type: 'pie',
-        data: {
-          labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
-          datasets: [{
-            data: [1500, 4500, 9600, 3000],
-            backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false
+const symbolCanvas = document.getElementById('symbolChart');
+if (symbolCanvas) {
+  new Chart(symbolCanvas, {
+    type: 'pie',
+    data: {
+      labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
+      datasets: [{
+        data: [1500, 4500, 9600, 3000],
+        backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 1.5,
+      plugins: {
+        legend: {
+          position: 'bottom'
         }
-      });
+      }
     }
-  }
+  });
+}
 
   // 📰 Render Ticker
   function renderTicker() {
