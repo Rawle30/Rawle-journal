@@ -15,9 +15,13 @@ export function initEquityCurveChart(ctx) {
         tension: 0.3
       }]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
+options: {
+  maintainAspectRatio: false,
+  responsive: true,
+  layout: {
+    padding: { top: 10, bottom: 10, left: 5, right: 5 }
+  }
+}
       plugins: {
         zoom: {
           pan: { enabled: true, mode: 'x' },
