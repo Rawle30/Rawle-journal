@@ -1,5 +1,5 @@
 'use strict';
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
@@ -20,35 +20,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ========= 📊 Trade Data (sample) =========
-  let trades = [
+  // ========= 📊 Trade Data =========
+  let trades = localStorage.getItem('trades') ? JSON.parse(localStorage.getItem('trades')) : [
     { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
     { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] },
     { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
     { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] }
   ];
-  let marketPrices = {};
-
-  // ========= API Key for Alpha Vantage =========
-  const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
-
-  // ========= Fetch Real-Time Prices =========
-  async function fetchMarketPrices(symbols) {
-    const uniqueSymbols = [...new Set(symbols)];
-    const promises = uniqueSymbols.map(async (symbol) => {
-      try {
-        const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
-        const data = await response.json();
-        const quote = data['Global Quote'];
-        if (quote && quote['05. price']) {
-          marketPrices[symbol] = asNumber(quote['05. price'], 0);
-        }
-      } catch (error) {
-        console.error(`Error fetching price for ${symbol}:`, error);
-      }
-    });
-    await Promise.all(promises);
-  }
+  let marketPrices = {
+    AAPL: 144.95,
+    GOOG: 2900,
+    MSFT: 310,
+    TSLA: 950
+  };
 
   // ========= 💰 Helpers =========
   const asNumber = (val, fallback = 0) => {
@@ -164,9 +148,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       multiplier: asNumber(cells[6].querySelector('input')?.value, 1),
       type: cells[7].querySelector('select')?.value || 'stock',
       broker: cells[8].querySelector('select')?.value || '',
-      tags: trades[index].tags || [] // Preserve tags, or add editing if needed
+      tags: trades[index].tags || [] // Preserve tags
     };
     trades[index] = updatedTrade;
+    localStorage.setItem('trades', JSON.stringify(trades));
     renderAll();
   }
 
@@ -174,6 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function deleteTrade(index) {
     if (confirm('Are you sure you want to delete this trade?')) {
       trades.splice(index, 1);
+      localStorage.setItem('trades', JSON.stringify(trades));
       renderAll();
     }
   }
@@ -348,9 +334,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ========= 🧮 Render Portfolio Summary =========
   function renderPortfolio() {
-    const container = document.getElementById('portfolio');
+    const container = document.getElementById('portfolio-summary');
     if (!container) return;
-    const summary = document.createElement('div');
     const symbols = {};
     let invested = 0;
     let currentValue = 0;
@@ -370,7 +355,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const holdings = Object.entries(symbols)
       .map(([sym, data]) => `<li>${sym}: ${asNumber(data.qty, 0)} shares (${fmtUSD(asNumber(data.value, 0))})</li>`)
       .join('');
-    summary.innerHTML = `
+    container.innerHTML = `
       <p><strong>Total Positions:</strong> ${trades.length}</p>
       <p><strong>Total Invested:</strong> ${fmtUSD(invested)}</p>
       <p><strong>Current Value:</strong> ${fmtUSD(currentValue)}</p>
@@ -378,8 +363,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       <h3>Holdings by Symbol:</h3>
       <ul>${holdings}</ul>
     `;
-    container.innerHTML = '';
-    container.appendChild(summary);
   }
 
   // ========= 📝 Form Submission Handler =========
@@ -408,6 +391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         trades.push(newTrade);
       }
       tradeForm.reset();
+      localStorage.setItem('trades', JSON.stringify(trades));
       renderAll();
     });
   }
@@ -503,7 +487,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           tags: tags ? tags.split(';').map(t => t.trim()) : []
         };
       });
-      trades.push(...newTrades);
+      trades = trades.concat(newTrades);
+      localStorage.setItem('trades', JSON.stringify(trades));
       renderAll();
     };
     reader.readAsText(file);
@@ -545,14 +530,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       const targetId = item.dataset.target;
       document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
       item.classList.add('active');
-      document.querySelectorAll('main section').forEach(sec => {
-        sec.style.display = 'none';
-        sec.classList.remove('active-section');
-      });
+      document.querySelectorAll('.switchable').forEach(sec => sec.style.display = 'none');
       const target = document.getElementById(targetId);
-      if (target) {
+      if (targetId && target) {
         target.style.display = 'block';
         target.classList.add('active-section');
+      } else {
+        // For dashboard, no target, so only hide switchable, show default view
       }
     });
   });
@@ -569,16 +553,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ========= 🚀 Initialize Dashboard =========
-  async function renderAll() {
-    const symbols = trades.map(t => t.symbol);
-    await fetchMarketPrices(symbols);
+  function renderAll() {
     renderTrades();
     renderCharts();
     renderTicker();
     renderPL();
     renderPortfolio();
   }
-  await renderAll();
+  renderAll();
 
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
@@ -587,3 +569,4 @@ document.addEventListener('DOMContentLoaded', async () => {
       .catch(err => console.error('Service Worker registration failed:', err));
   }
 });
+
