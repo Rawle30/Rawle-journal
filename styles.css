@@ -18,7 +18,7 @@
 .main {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--box-gap);
+  gap: 10px;
 }
 .sidebar, .section {
   background: var(--background-section);
