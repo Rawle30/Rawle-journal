@@ -17,7 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (compactToggle) {
     compactToggle.addEventListener('change', () => {
       document.body.classList.toggle('compact', compactToggle.checked);
+      localStorage.setItem('compact', compactToggle.checked ? 'true' : 'false');
     });
+    if (localStorage.getItem('compact') === 'true') {
+      compactToggle.checked = true;
+      document.body.classList.add('compact');
+    }
   }
 
   // ========= 📊 Trade Data =========
@@ -78,8 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${trade.multiplier ?? (trade.type === 'option' ? 100 : 1)}</td>
         <td>${trade.type ?? 'stock'}</td>
         <td data-broker="${trade.broker ?? ''}">${trade.broker ?? ''}</td>
-        <td>${currentPrice}</td>
-        <td>${plHtml}</td>
+        <td class="current-price">${currentPrice}</td>
+        <td class="pl">${plHtml}</td>
         <td>
           <button type="button" class="edit-btn">Edit</button>
           <button type="button" class="delete-btn">Delete</button>
@@ -100,8 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const cells = row.querySelectorAll('td');
     const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker'];
     fields.forEach((field, i) => {
-      const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : '');
-      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' ? 'number' : 'text'}" value="${value}">`;
+      const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : field === 'multiplier' && trade.type === 'option' ? 100 : '');
+      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : ''}>`;
       if (field === 'type') {
         cells[i].innerHTML = `
           <select>
@@ -123,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
       }
     });
-    // Current Price and P/L remain non-editable
     const actionsCell = cells[cells.length - 1];
     actionsCell.innerHTML = `
       <button type="button" class="save-btn">Save</button>
@@ -148,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
       multiplier: asNumber(cells[6].querySelector('input')?.value, 1),
       type: cells[7].querySelector('select')?.value || 'stock',
       broker: cells[8].querySelector('select')?.value || '',
-      tags: trades[index].tags || [] // Preserve tags
+      tags: trades[index].tags || []
     };
     trades[index] = updatedTrade;
     localStorage.setItem('trades', JSON.stringify(trades));
@@ -400,8 +404,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags,Current Price,P/L\n';
       trades.forEach(trade => {
+        const currentPrice = marketPrices[trade.symbol] ? asNumber(marketPrices[trade.symbol], 0) : '';
+        const pl = getPL(trade);
         csv += [
           trade.symbol ?? '',
           asNumber(trade.qty, 0),
@@ -412,7 +418,9 @@ document.addEventListener('DOMContentLoaded', () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
-          trade.tags?.join(';') ?? ''
+          trade.tags?.join(';') ?? '',
+          currentPrice,
+          pl
         ].join(',') + '\n';
       });
       downloadCSV(csv, 'trades.csv');
@@ -424,8 +432,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (exportFilteredBtn) {
     exportFilteredBtn.addEventListener('click', () => {
       const filtered = filterTrades();
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags,Current Price,P/L\n';
       filtered.forEach(trade => {
+        const currentPrice = marketPrices[trade.symbol] ? asNumber(marketPrices[trade.symbol], 0) : '';
+        const pl = getPL(trade);
         csv += [
           trade.symbol ?? '',
           asNumber(trade.qty, 0),
@@ -436,7 +446,9 @@ document.addEventListener('DOMContentLoaded', () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
-          trade.tags?.join(';') ?? ''
+          trade.tags?.join(';') ?? '',
+          currentPrice,
+          pl
         ].join(',') + '\n';
       });
       downloadCSV(csv, 'filtered_trades.csv');
@@ -487,7 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
           tags: tags ? tags.split(';').map(t => t.trim()) : []
         };
       });
-      trades = trades.concat(newTrades);
+      trades.push(...newTrades);
       localStorage.setItem('trades', JSON.stringify(trades));
       renderAll();
     };
@@ -530,13 +542,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetId = item.dataset.target;
       document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
       item.classList.add('active');
-      document.querySelectorAll('.switchable').forEach(sec => sec.style.display = 'none');
-      const target = document.getElementById(targetId);
-      if (targetId && target) {
-        target.style.display = 'block';
-        target.classList.add('active-section');
-      } else {
-        // For dashboard, no target, so only hide switchable, show default view
+      document.querySelectorAll('main section').forEach(sec => {
+        sec.style.display = sec.classList.contains('switchable') ? 'none' : 'block';
+        sec.classList.remove('active-section');
+      });
+      if (targetId) {
+        const target = document.getElementById(targetId);
+        if (target) {
+          target.style.display = 'block';
+          target.classList.add('active-section');
+        }
       }
     });
   });
@@ -569,4 +584,5 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(err => console.error('Service Worker registration failed:', err));
   }
 });
+
 
