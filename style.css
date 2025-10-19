@@ -10,8 +10,6 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  display: flex;
-  flex-direction: column;
 }
 
 .ticker {
@@ -69,11 +67,22 @@ body {
   margin-left: 220px;
   padding: 1em;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-areas:
+    "equity symbol symbol"
+    "trades alerts risk"
+    "pl pl entry";
+  grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: auto auto auto;
   gap: 1em;
-  background-color: #fdfdfd;
 }
+
+.equity-curve { grid-area: equity; }
+.symbol-distribution { grid-area: symbol; }
+.trades-table { grid-area: trades; }
+.alerts { grid-area: alerts; }
+.risk-analytics { grid-area: risk; }
+.profit-loss { grid-area: pl; }
+.trade-entry { grid-area: entry; }
 
 section {
   background-color: var(--yellow);
@@ -94,6 +103,28 @@ th, td {
 .green { color: var(--green); }
 .red { color: var(--red); }
 
+.trade-entry form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1em;
+}
+
+.trade-entry label {
+  display: flex;
+  flex-direction: column;
+  font-weight: bold;
+}
+
+.trade-entry button {
+  grid-column: span 2;
+  padding: 0.5em;
+  background-color: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 body.dark {
   background-color: #121212;
   color: #f0f0f0;
@@ -112,6 +143,12 @@ body.dark th, body.dark td {
 
 body.dark .ticker {
   background-color: #333;
+  color: #fff;
+}
+
+body.dark #darkToggle {
+  background-color: #444;
+  color: #fff;
 }
 
 
