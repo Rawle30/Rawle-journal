@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // 🌙 Dark Mode Toggle
   if (localStorage.getItem('theme') === 'dark') {
     document.body.classList.add('dark');
   }
@@ -10,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('theme', mode);
   });
 
-  // 📊 Sample Trades
   const trades = [
     { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', broker: 'Etrade', type: 'stock' },
     { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', broker: 'Schwab', type: 'stock' },
@@ -25,14 +23,17 @@ document.addEventListener('DOMContentLoaded', () => {
     TSLA: 950
   };
 
-  // 📈 Profit/Loss Calculation
+  function formatPL(value) {
+    const color = value >= 0 ? 'green' : 'red';
+    return `<span class="${color}">$${value.toFixed(2)}</span>`;
+  }
+
   function getPL(trade) {
     const price = trade.exit ?? marketPrices[trade.symbol] ?? trade.entry;
     const multiplier = trade.type === 'option' ? trade.multiplier || 100 : 1;
     return (price - trade.entry) * trade.qty * multiplier;
   }
 
-  // 📋 Render Trades Table
   function renderTrades() {
     const tbody = document.getElementById('tradeRows');
     tbody.innerHTML = '';
@@ -50,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 📊 Render Charts
   function renderCharts() {
     new Chart(document.getElementById('equityChart'), {
       type: 'line',
@@ -85,13 +85,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 📰 Render Ticker
   function renderTicker() {
     const ticker = document.getElementById('ticker-scroll');
     ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${marketPrices.GOOG} | MSFT: $${marketPrices.MSFT} | TSLA: $${marketPrices.TSLA}`;
   }
 
-  // 💰 Render Profit/Loss Summary
   function renderPL() {
     const brokers = {};
     trades.forEach(trade => {
@@ -113,19 +111,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let totalUnrealized = 0;
 
     for (const broker in brokers) {
+      const realized = formatPL(brokers[broker].realized);
+      const unrealized = formatPL(brokers[broker].unrealized);
       const row = document.createElement('tr');
-      const realized = brokers[broker].realized.toFixed(2);
-      const unrealized = brokers[broker].unrealized.toFixed(2);
-      row.innerHTML = `<td>${broker}</td><td>$${realized}</td><td>$${unrealized}</td>`;
+      row.innerHTML = `<td>${broker}</td><td>${realized}</td><td>${unrealized}</td>`;
       tbody.appendChild(row);
       totalRealized += brokers[broker].realized;
       totalUnrealized += brokers[broker].unrealized;
     }
 
-    document.getElementById('combinedPL').textContent = `$${(totalRealized + totalUnrealized).toFixed(2)}`;
+    document.getElementById('combinedPL').innerHTML = formatPL(totalRealized + totalUnrealized);
   }
 
-  // 📈 Render Portfolio Overview
   function renderPortfolio() {
     const container = document.getElementById('portfolio');
     const summary = document.createElement('div');
@@ -135,8 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentValue = 0;
 
     trades.forEach(trade => {
-      const symbol = trade.symbol;
-      const qty = trade.qty;
+      const symbol =
       const entry = trade.entry;
       const price = marketPrices[symbol] ?? entry;
       const value = price * qty;
@@ -157,11 +153,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <p><strong>Total Positions:</strong> ${trades.length}</p>
       <p><strong>Total Invested:</strong> $${invested.toFixed(2)}</p>
       <p><strong>Current Value:</strong> $${currentValue.toFixed(2)}</p>
-      <p><strong>Unrealized P/L:</strong> <span class="${netPL >= 0 ? 'green' : 'red'}">$${netPL.toFixed(2)}</span></p>
+      <p><strong>Unrealized P/L:</strong> ${formatPL(netPL)}</p>
       <h3>Holdings by Symbol:</h3>
       <ul>
         ${Object.entries(symbols).map(([sym, data]) =>
-          `<li>${sym}: ${data.qty} shares ($${data.value.toFixed(2)})</li>`).join('')}
+          `<li>${sym}: ${data.qty} shares ($${formatPL(data.value)})</li>`).join('')}
       </ul>
     `;
 
@@ -221,29 +217,23 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 🧭 Sidebar Tab Navigation
-  document.querySelectorAll
-  // 🧭 Sidebar Tab Navigation (continued)
   document.querySelectorAll('.sidebar li').forEach(item => {
     item.addEventListener('click', () => {
       const targetId = item.dataset.target;
 
-      // Highlight active tab
       document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
       item.classList.add('active');
 
-      // Hide all dashboard sections
       document.querySelectorAll('main section').forEach(sec => {
         sec.style.display = 'none';
       });
 
-      // Show selected section
       const targetSection = document.getElementById(targetId);
       if (targetSection) {
         targetSection.style.display = 'block';
       }
     });
   });
-
   // 📤 Export Trades Table to CSV
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
