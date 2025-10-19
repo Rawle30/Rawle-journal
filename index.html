@@ -3,43 +3,58 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading Journal</title>
-  <link rel="manifest" href="manifest.json" />
+  <title>Trading Journal Preview</title>
   <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="icon-192.png" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f9f9f9;
+      color: #333;
+    }
+    h1 {
+      color: #5DE2E7;
+    }
+    .preview-box {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .preview-box img {
+      max-width: 100%;
+      border-radius: 4px;
+    }
+    .btn {
+      background: #5DE2E7;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 1rem;
+    }
+  </style>
 </head>
 <body>
-  <button id="theme-toggle">Toggle Theme</button>
-  <div id="app">
-    <h1>📊 Trading Journal</h1>
-    <form id="trade-form">
-      <!-- Form fields for trade entry -->
-    </form>
-    <div class="chart-container">
-  <canvas id="equity-curve-chart"></canvas>
-</div>
-    <canvas id="symbol-pie-chart"></canvas>
-    <div id="alert-list"></div>
+  <h1>📊 Trading Journal</h1>
+  <div class="preview-box">
+    <p>Track trades, visualize performance, and set price alerts in a modular Progressive Web App.</p>
+    <ul>
+      <li>✅ Add and validate trades</li>
+      <li>📈 Interactive charts</li>
+      <li>🔔 Price alerts</li>
+      <li>🌙 Theme toggle</li>
+      <li>📦 Offline-ready PWA</li>
+    </ul>
+    <a href="index.html" class="btn">Launch App</a>
   </div>
-
-  <!-- Chart.js and plugins via CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
-
-  <!-- Theme toggle -->
-  <script>
-    const toggleBtn = document.getElementById('theme-toggle');
-    toggleBtn.addEventListener('click', () => {
-      document.body.classList.toggle('dark');
-      localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
-    });
-    if (localStorage.getItem('theme') === 'dark') {
-      document.body.classList.add('dark');
-    }
-  </script>
-
-  <!-- Main app -->
-  <script type="module" src="js/main.js"></script>
+  <div class="preview-box">
+    <h2>Preview</h2>
+    <img src="screenshot1.png" alt="Trading Journal Screenshot" />
+  </div>
 </body>
 </html>
+
