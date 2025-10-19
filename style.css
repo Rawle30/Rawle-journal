@@ -10,6 +10,8 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
+  background-color: #fff;
+  color: #000;
 }
 
 .ticker {
@@ -117,11 +119,27 @@ th, td {
   font-weight: bold;
 }
 
-.csv-controls {
+.csv-controls,
+.filter-controls {
   margin: 1em 0;
   display: flex;
   gap: 1em;
   align-items: center;
+}
+
+#dropZone {
+  border: 2px dashed #ccc;
+  padding: 1em;
+  text-align: center;
+  margin-bottom: 1em;
+  background-color: #f9f9f9;
+  color: #666;
+}
+
+#dropZone.dragover {
+  border-color: var(--blue);
+  background-color: #e0f7ff;
+  color: var(--blue);
 }
 
 .trade-entry form {
@@ -172,6 +190,46 @@ body.dark #darkToggle {
   color: #fff;
 }
 
+body.dark #dropZone {
+  background-color: #222;
+  border-color: #555;
+  color: #ccc;
+}
 
+body.dark #dropZone.dragover {
+  background-color: #333;
+  border-color: var(--blue);
+  color: var(--blue);
+}
+body.dark .filter-controls label,
+body.dark .csv-controls label {
+  color: #f0f0f0;
+}
 
+body.dark select,
+body.dark input[type="file"] {
+  background-color: #2a2a2a;
+  color: #f0f0f0;
+  border: 1px solid #555;
+}
 
+select,
+input[type="file"] {
+  padding: 0.4em;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 0.9em;
+}
+
+button {
+  font-size: 0.9em;
+}
+
+ul {
+  padding-left: 1.2em;
+}
+
+canvas {
+  display: block;
+  max-width: 100%;
+}
