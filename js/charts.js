@@ -64,3 +64,26 @@ export function updateSymbolPieChart(data) {
   symbolPieChart.data.datasets[0].data = data.map(d => d.value);
   symbolPieChart.update();
 }
+export function renderEquityCurve(data, labels) {
+  const ctx = document.getElementById('equity-curve-canvas').getContext('2d');
+  const config = {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Equity Curve',
+        data,
+        borderColor: 'green',
+        backgroundColor: 'rgba(0,255,0,0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: 10 }
+    }
+  };
+  new Chart(ctx, config);
+}
