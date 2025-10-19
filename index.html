@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,22 +19,23 @@
     <h1>📊 Trading Journal</h1>
     <nav>
       <ul>
-        <li data-target="portfolio" class="active">Portfolio</li>
-        <li data-target="trades-table">Trades</li>
-        <li data-target="alerts">Alerts</li>
-        <li data-target="settings">Settings</li>
+        <li data-target="" class="active">Dashboard</li>
+        <li data-target="portfolio" class="switchable">Portfolio</li>
+        <li data-target="trades-table" class="switchable">Trades</li>
+        <li data-target="alerts" class="switchable">Alerts</li>
+        <li data-target="settings" class="switchable">Settings</li>
       </ul>
     </nav>
   </aside>
   <!-- 🟡 Main Dashboard -->
   <main class="dashboard">
     <!-- Portfolio Overview -->
-    <section id="portfolio">
+    <section id="portfolio" class="switchable">
       <h2>Portfolio Overview</h2>
       <div id="portfolio-summary"></div>
     </section>
     <!-- Trades Table -->
-    <section id="trades-table" style="display:none;">
+    <section id="trades-table" class="switchable" style="display:none;">
       <h2>Trades</h2>
       <div class="csv-controls">
         <button id="exportCSV">Download CSV</button>
@@ -87,7 +87,7 @@
       <div id="tradeSummary"></div>
     </section>
     <!-- Alerts -->
-    <section id="alerts" style="display:none;">
+    <section id="alerts" class="switchable" style="display:none;">
       <h2>Recent Alerts</h2>
       <ul id="alertsList">
         <li>AAPL | $150 | Above</li>
@@ -95,7 +95,7 @@
       </ul>
     </section>
     <!-- Settings -->
-    <section id="settings" style="display:none;">
+    <section id="settings" class="switchable" style="display:none;">
       <h2>Settings</h2>
       <label>
         <input type="checkbox" id="compactToggle" />
@@ -182,9 +182,3 @@
   <script src="script.js"></script>
 </body>
 </html>
-```
-
-
-
-
-
