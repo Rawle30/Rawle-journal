@@ -25,24 +25,26 @@ document.addEventListener('DOMContentLoaded', () => {
     TSLA: 950
   };
 
-  // 🔢 Format P/L with color
   function formatPL(value) {
     const color = value >= 0 ? 'green' : 'red';
     return `<span class="${color}">$${value.toFixed(2)}</span>`;
   }
 
-  // 📈 Calculate P/L
   function getPL(trade) {
     const price = trade.exit ?? marketPrices[trade.symbol] ?? trade.entry;
     const multiplier = trade.type === 'option' ? trade.multiplier || 100 : 1;
     return (price - trade.entry) * trade.qty * multiplier;
   }
 
-  // 📋 Render Trades Table
-  function renderTrades() {
+  function renderTrades(filter = 'all') {
     const tbody = document.getElementById('tradeRows');
     tbody.innerHTML = '';
-    trades.forEach((trade, index) => {
+
+    const filteredTrades = filter === 'all'
+      ? trades
+      : trades.filter(trade => trade.broker === filter);
+
+    filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
       row.innerHTML = `
         <td>${trade.symbol}</td>
@@ -50,13 +52,16 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>$${trade.entry}</td>
         <td>${trade.entryDate}</td>
         <td>${trade.exit ?? '-'}</td>
+        <td>${trade.exitDate ?? '-'}</td>
+        <td>${trade.multiplier ?? 100}</td>
+        <td>${trade.type}</td>
+        <td>${trade.broker}</td>
         <td><button onclick="editTrade(${index})">Edit</button></td>
       `;
       tbody.appendChild(row);
     });
   }
 
-  // 📊 Render Charts
   function renderCharts() {
     new Chart(document.getElementById('equityChart'), {
       type: 'line',
@@ -91,13 +96,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 📰 Render Ticker
   function renderTicker() {
     const ticker = document.getElementById('ticker-scroll');
     ticker.textContent = `AAPL: $${marketPrices.AAPL} | GOOG: $${marketPrices.GOOG} | MSFT: $${marketPrices.MSFT} | TSLA: $${marketPrices.TSLA}`;
   }
 
-  // 💰 Render Profit/Loss Summary
   function renderPL() {
     const brokers = {};
     trades.forEach(trade => {
@@ -131,7 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('combinedPL').innerHTML = formatPL(totalRealized + totalUnrealized);
   }
 
-  // 📈 Render Portfolio Overview
   function renderPortfolio() {
     const container = document.getElementById('portfolio-summary');
     const symbols = {};
@@ -170,7 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
-  // ✏️ Edit Trade Handler
   window.editTrade = function(index) {
     const trade = trades[index];
     const form = document.getElementById('tradeForm');
@@ -189,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
     form.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // 📝 Form Submission Handler
   document.getElementById('tradeForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const form = e.target;
@@ -215,23 +215,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     form.reset();
-    renderTrades();
+    renderTrades(document.getElementById('brokerFilter').value);
     renderPL();
     renderCharts();
     renderPortfolio();
   });
 
-  // 🧭 Sidebar Tab Navigation
   document.querySelectorAll('.sidebar li').forEach(item => {
     item.addEventListener('click', () => {
       const targetId = item.dataset.target;
-
       document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
       item.classList.add('active');
       document.querySelectorAll('main section').forEach(sec => {
         sec.style.display = 'none';
       });
-
       const targetSection = document.getElementById(targetId);
       if (targetSection) {
         targetSection.style.display = 'block';
@@ -239,66 +236,94 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 📤 Export Trades Table to CSV
-  const exportBtn = document.getElementById('exportCSV');
-  if (exportBtn) {
-    exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Date,Exit,ExitDate,Multiplier,Type,Broker\n';
-      trades.forEach(trade => {
-        csv += `${trade.symbol},${trade.qty},${trade.entry},${trade.entryDate},${trade.exit ?? ''},${trade.exitDate ?? ''},${trade.multiplier ?? 100},${trade.type},${trade.broker}\n`;
-      });
-
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'trades.csv';
-      link.click();
+  // 📤 Export Trades to CSV
+  document.getElementById('exportCSV').addEventListener('click', () => {
+    let csv = 'Symbol,Qty,Entry,Date,Exit,ExitDate,Multiplier,Type,Broker\n';
+    trades.forEach(trade => {
+      csv += `${trade.symbol},${trade.qty},${trade.entry},${trade.entryDate},${trade.exit ?? ''},${trade.exitDate ?? ''},${trade.multiplier ?? 100},${trade.type},${trade.broker}\n`;
     });
-  }
 
-  // 📥 Import Trades from CSV
-  const importInput = document.getElementById('importCSV');
-  if (importInput) {
-    importInput.addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'trades.csv';
+    link.click();
+  });
 
+  // 📥 CSV Import Handler
+  document.getElementById('importCSV').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      parseCSV(event.target.result);
+    };
+    reader.readAsText(file);
+  });
+
+  // 📂 Drag-and-Drop CSV Upload
+  const dropZone = document.getElementById('dropZone');
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith('.csv')) {
       const reader = new FileReader();
       reader.onload = function(event) {
-        const lines = event.target.result.split('\n').filter(line => line.trim());
-        const headers = lines[0].split(',').map(h => h.trim());
-        const newTrades = [];
+        parseCSV(event.target.result);
+      };
+      reader.readAsText(file);
+    }
+  });
 
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim());
-          if (values.length < 9) continue;
+  // 🧠 CSV Parser
+  function parseCSV(text) {
+    const lines = text.split('\n').filter(line => line.trim());
+    const headers = lines[0].split(',').map(h => h.trim());
+    const newTrades = [];
 
-          const trade = {
-            symbol: values[0],
-            qty: parseFloat(values[1]),
-            entry: parseFloat(values[2]),
-            entryDate: values[3],
-            exit: values[4] ? parseFloat(values[4]) : null,
-            exitDate: values[5] || null,
-            multiplier: values[6] ? parseInt(values[6]) : 100,
-            type: values[7],
-            broker: values[8]
-          };
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      if (values.length < 9) continue;
 
-          newTrades.push(trade);
-        }
-
-        trades.length = 0;
-        trades.push(...newTrades);
-        renderTrades();
-        renderPL();
-        renderCharts();
-        renderPortfolio();
+      const trade = {
+        symbol: values[0],
+        qty: parseFloat(values[1]),
+        entry: parseFloat(values[2]),
+        entryDate: values[3],
+        exit: values[4] ? parseFloat(values[4]) : null,
+        exitDate: values[5] || null,
+        multiplier: values[6] ? parseInt(values[6]) : 100,
+        type: values[7],
+        broker: values[8]
       };
 
-      reader.readAsText(file);
-    });
+      newTrades.push(trade);
+    }
+
+    trades.length = 0;
+    trades.push(...newTrades);
+    renderTrades(document.getElementById('brokerFilter').value);
+    renderPL();
+    renderCharts();
+    renderPortfolio();
   }
+
+  // 🔍 Broker Filter Listener
+  document.getElementById('brokerFilter').addEventListener('change', function() {
+    const selected = this.value;
+    renderTrades(selected);
+  });
 
   // 🚀 Initialize Dashboard
   renderTrades();
@@ -307,7 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPL();
   renderPortfolio();
 });
-
 
 
 
