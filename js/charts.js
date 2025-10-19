@@ -17,11 +17,16 @@ export function initEquityCurveChart(ctx) {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         zoom: {
           pan: { enabled: true, mode: 'x' },
           zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }
         }
+      },
+      scales: {
+        x: { ticks: { autoSkip: true, maxTicksLimit: 10 } },
+        y: { beginAtZero: true }
       }
     }
   });
