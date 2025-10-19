@@ -77,29 +77,30 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-const symbolCanvas = document.getElementById('symbolChart');
-if (symbolCanvas) {
-  new Chart(symbolCanvas, {
-    type: 'pie',
-    data: {
-      labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
-      datasets: [{
-        data: [1500, 4500, 9600, 3000],
-        backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      aspectRatio: 1.5,
-      plugins: {
-        legend: {
-          position: 'bottom'
+    const symbolCanvas = document.getElementById('symbolChart');
+    if (symbolCanvas) {
+      new Chart(symbolCanvas, {
+        type: 'pie',
+        data: {
+          labels: ['AAPL', 'GOOG', 'MSFT', 'TSLA'],
+          datasets: [{
+            data: [1500, 4500, 9600, 3000],
+            backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          aspectRatio: 1.5,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            }
+          }
         }
-      }
+      });
     }
-  });
-}
+  }
 
   // 📰 Render Ticker
   function renderTicker() {
@@ -215,6 +216,7 @@ if (symbolCanvas) {
       entry: parseFloat(form.entry.value),
       entryDate: form.date.value,
       exit: form.exit.value ? parseFloat(form.exit.value) : null,
+      exitDate: form
       exitDate: form.exitDate.value || null,
       multiplier: form.multiplier.value ? parseInt(form.multiplier.value) : 100,
       type: form.type.value,
@@ -242,7 +244,6 @@ if (symbolCanvas) {
       const targetId = item.dataset.target;
 
       document.querySelectorAll('.sidebar li').forEach(li => li.classList.remove('active'));
-      item.classList.add
       item.classList.add('active');
 
       document.querySelectorAll('main section').forEach(sec => {
@@ -272,15 +273,6 @@ if (symbolCanvas) {
       link.click();
     });
   }
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.map(key => {
-        if (key !== CACHE_NAME) return caches.delete(key);
-      }))
-    )
-  );
-});
 
   // 🚀 Initialize Dashboard
   renderTrades();
@@ -289,7 +281,6 @@ self.addEventListener('activate', event => {
   renderPL();
   renderPortfolio();
 });
-
 
 
 
