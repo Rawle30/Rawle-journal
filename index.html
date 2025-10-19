@@ -26,13 +26,17 @@
   </aside>
 
   <main class="dashboard">
-    <section id="portfolio" class="portfolio">
+    <section id="portfolio">
       <h2>Portfolio Overview</h2>
-      <p>Coming soon...</p>
+      <div id="portfolio-summary"></div>
     </section>
 
-    <section id="trades-table" class="trades-table" style="display:none;">
+    <section id="trades-table" style="display:none;">
       <h2>Trades</h2>
+      <div class="csv-controls">
+        <button id="exportCSV">Download CSV</button>
+        <input type="file" id="importCSV" accept=".csv" />
+      </div>
       <table>
         <thead>
           <tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Date</th><th>Exit</th><th>Edit</th></tr>
@@ -41,7 +45,7 @@
       </table>
     </section>
 
-    <section id="alerts" class="alerts" style="display:none;">
+    <section id="alerts" style="display:none;">
       <h2>Recent Alerts</h2>
       <ul>
         <li>AAPL | $150 | Above</li>
@@ -49,19 +53,19 @@
       </ul>
     </section>
 
-    <section id="settings" class="settings" style="display:none;">
+    <section id="settings" style="display:none;">
       <h2>Settings</h2>
       <p>Dark mode, preferences, etc.</p>
     </section>
 
     <section class="equity-curve">
       <h2>Equity Curve</h2>
-      <canvas id="equityChart" width="300" height="150"></canvas>
+      <canvas id="equityChart"></canvas>
     </section>
 
     <section class="symbol-distribution">
       <h2>Symbol Distribution</h2>
-      <canvas id="symbolChart" width="300" height="150"></canvas>
+      <canvas id="symbolChart"></canvas>
     </section>
 
     <section class="risk-analytics">
@@ -110,9 +114,11 @@
       </form>
     </section>
   </main>
-  <script src="script.js" defer></script>
+
+  <script src="script.js"></script>
 </body>
 </html>
+
 
 
 
