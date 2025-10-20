@@ -1,7 +1,7 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', async () => {
-  // ========= API Key for Alpha Vantage =========
-  const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
+  // ========= Load API Key from localStorage =========
+  let API_KEY = localStorage.getItem('apiKey') || '';
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
@@ -28,6 +28,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ========= API Key Input Handler =========
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const saveApiKeyBtn = document.getElementById('saveApiKey');
+  if (apiKeyInput && saveApiKeyBtn) {
+    apiKeyInput.value = API_KEY; // Pre-fill with stored key
+    saveApiKeyBtn.addEventListener('click', async () => {
+      API_KEY = apiKeyInput.value.trim();
+      localStorage.setItem('apiKey', API_KEY);
+      console.log('API key saved:', API_KEY);
+      await fetchMarketPrices(trades.map(t => t.symbol));
+      precomputePL();
+      renderAll();
+    });
+  }
+
   // ========= 📊 Trade Data =========
   let trades = localStorage.getItem('trades') ? JSON.parse(localStorage.getItem('trades')) : [
     { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
@@ -39,11 +54,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ========= Fetch Real-Time Prices =========
   async function fetchMarketPrices(symbols) {
-    if (!API_KEY || API_KEY === 'YOUR_ALPHA_VANTAGE_API_KEY') {
-      console.error('Alpha Vantage API key is missing. Please set API_KEY in script.js.');
-      document.getElementById('ticker-scroll').textContent = 'API key missing. Using fallback prices.';
+    if (!API_KEY) {
+      console.error('No Alpha Vantage API key provided. Enter a key in Settings.');
+      document.getElementById('ticker-scroll').textContent = 'Enter API key in Settings to load market data.';
       trades.forEach(trade => {
-        marketPrices[trade.symbol] = asNumber(trade.entry, 0); // Fallback to entry price
+        marketPrices[trade.symbol] = asNumber(trade.entry, 0);
       });
       return;
     }
@@ -73,11 +88,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
       await Promise.all(promises);
-      // Delay to avoid rate limits (1 second between batches)
+      // Delay to avoid rate limits
       if (i + batchSize < uniqueSymbols.length) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
+  }
+
+  // ========= Real-Time Price Updates =========
+  function startPriceUpdates() {
+    setInterval(async () => {
+      if (trades.length > 0) {
+        await fetchMarketPrices(trades.map(t => t.symbol));
+        precomputePL();
+        renderAll();
+      }
+    }, 60000); // Update every 60 seconds
   }
 
   // ========= 💰 Helpers =========
@@ -349,7 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const el = document.getElementById('ticker-scroll');
     if (!el) return;
     if (Object.keys(marketPrices).length === 0) {
-      el.textContent = 'No market data available';
+      el.textContent = 'Market data unavailable';
       return;
     }
     const parts = Object.entries(marketPrices).map(([sym, price]) => `${sym}: ${fmtUSD(price)}`);
@@ -618,6 +644,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     link.remove();
   }
 
+  // ========= 🚀 Initialize Dashboard =========
+  async function renderAll() {
+    const symbols = trades.map(t => t.symbol);
+    await fetchMarketPrices(symbols);
+    precomputePL();
+    renderTrades();
+    renderCharts();
+    renderTicker();
+    renderPL();
+    renderPortfolio();
+  }
+
+  // Initialize and start price updates
+  await renderAll();
+  startPriceUpdates();
+
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
     // Unregister old Service Workers to prevent conflicts
@@ -644,10 +686,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.reload();
     });
   }
-
-  // Initialize dashboard
-  await renderAll();
 });
+
 
 
 
