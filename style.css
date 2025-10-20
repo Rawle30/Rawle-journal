@@ -248,6 +248,10 @@ td[data-broker]::before {
   border-radius: 3px;
   margin-right: 0.3em;
 }
+#apiKeyStatus {
+  font-size: 0.85em;
+  margin-top: 0.3em;
+}
 /* 🌙 Dark Mode */
 body.dark {
   background-color: #121212;
@@ -309,6 +313,9 @@ body.dark .save-btn, body.dark #saveApiKey {
 }
 body.dark .save-btn:hover, body.dark #saveApiKey:hover {
   background-color: #5aa03b;
+}
+body.dark #apiKeyStatus {
+  color: #ff6666;
 }
 /* 🧱 Compact Mode */
 body.compact .dashboard {
@@ -403,6 +410,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+
 
 
 
