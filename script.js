@@ -1,7 +1,7 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', async () => {
   // ========= API Key for Alpha Vantage =========
-  const API_KEY = 'I3AR7KSM7UR0RYLA'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
+  const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
@@ -39,24 +39,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ========= Fetch Real-Time Prices =========
   async function fetchMarketPrices(symbols) {
+    if (!API_KEY || API_KEY === 'YOUR_ALPHA_VANTAGE_API_KEY') {
+      console.error('Alpha Vantage API key is missing. Please set API_KEY in script.js.');
+      document.getElementById('ticker-scroll').textContent = 'API key missing. Using fallback prices.';
+      trades.forEach(trade => {
+        marketPrices[trade.symbol] = asNumber(trade.entry, 0); // Fallback to entry price
+      });
+      return;
+    }
+
     const uniqueSymbols = [...new Set(symbols)];
-    const promises = uniqueSymbols.map(async (symbol) => {
-      try {
-        const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
-        const data = await response.json();
-        const quote = data['Global Quote'];
-        if (quote && quote['05. price']) {
-          marketPrices[symbol] = asNumber(quote['05. price'], 0);
-        } else {
-          console.warn(`No price data for ${symbol}`);
+    // Batch symbols to respect Alpha Vantage rate limits (5 calls/minute)
+    const batchSize = 5;
+    for (let i = 0; i < uniqueSymbols.length; i += batchSize) {
+      const batch = uniqueSymbols.slice(i, i + batchSize);
+      const promises = batch.map(async (symbol) => {
+        try {
+          const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error ${response.status} for ${symbol}`);
+          }
+          const data = await response.json();
+          const quote = data['Global Quote'];
+          if (quote && quote['05. price']) {
+            marketPrices[symbol] = asNumber(quote['05. price'], 0);
+          } else {
+            console.warn(`No price data for ${symbol}:`, data);
+            marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
+          }
+        } catch (error) {
+          console.error(`Error fetching price for ${symbol}:`, error);
           marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
         }
-      } catch (error) {
-        console.error(`Error fetching price for ${symbol}:`, error);
-        marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
+      });
+      await Promise.all(promises);
+      // Delay to avoid rate limits (1 second between batches)
+      if (i + batchSize < uniqueSymbols.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-    });
-    await Promise.all(promises);
+    }
   }
 
   // ========= 💰 Helpers =========
@@ -184,7 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     trades[index] = updatedTrade;
     localStorage.setItem('trades', JSON.stringify(trades));
     await fetchMarketPrices([updatedTrade.symbol]);
-    precomputePL(); // Precompute after update
+    precomputePL();
     renderAll();
   }
 
@@ -193,7 +214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (confirm('Are you sure you want to delete this trade?')) {
       trades.splice(index, 1);
       localStorage.setItem('trades', JSON.stringify(trades));
-      precomputePL(); // Precompute after delete
+      precomputePL();
       renderAll();
     }
   }
@@ -221,7 +242,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const dates = [...new Set(sortedTrades.map(t => t.entryDate))];
       const equityData = dates.map(date => {
         const dailyTrades = sortedTrades.filter(t => t.entryDate <= date);
-        return dailyTrades.reduce((sum, t) => sum + (t.pl || getPL(t)), 0); // Use precomputed P/L
+        return dailyTrades.reduce((sum, t) => sum + (t.pl || getPL(t)), 0);
       });
       const chart = new Chart(equityCanvas, {
         type: chartType,
@@ -327,6 +348,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderTicker() {
     const el = document.getElementById('ticker-scroll');
     if (!el) return;
+    if (Object.keys(marketPrices).length === 0) {
+      el.textContent = 'No market data available';
+      return;
+    }
     const parts = Object.entries(marketPrices).map(([sym, price]) => `${sym}: ${fmtUSD(price)}`);
     el.textContent = parts.join(' | ');
   }
@@ -427,7 +452,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tradeForm.reset();
       localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices([newTrade.symbol]);
-      precomputePL(); // Precompute after update
+      precomputePL();
       renderAll();
     });
   }
@@ -526,7 +551,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       trades.push(...newTrades);
       localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices(newTrades.map(t => t.symbol));
-      precomputePL(); // Precompute after import
+      precomputePL();
       renderAll();
     };
     reader.readAsText(file);
@@ -623,6 +648,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize dashboard
   await renderAll();
 });
+
 
 
 
