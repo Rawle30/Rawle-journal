@@ -1,8 +1,11 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', async () => {
-  // ========= Load API Key from localStorage =========
+  // ========= Load API Key and Cached Prices from localStorage =========
   let API_KEY = localStorage.getItem('apiKey') || '';
+  let marketPrices = JSON.parse(localStorage.getItem('marketPrices') || '{}');
+  let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
+  let rateLimitHit = false;
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
@@ -34,11 +37,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const saveApiKeyBtn = document.getElementById('saveApiKey');
   const apiKeyStatus = document.getElementById('apiKeyStatus');
   if (apiKeyInput && saveApiKeyBtn && apiKeyStatus) {
-    apiKeyInput.value = API_KEY; // Pre-fill with stored key
+    apiKeyInput.value = API_KEY;
     saveApiKeyBtn.addEventListener('click', async () => {
       API_KEY = apiKeyInput.value.trim();
       localStorage.setItem('apiKey', API_KEY);
-      console.log('API key saved:', API_KEY);
+      rateLimitHit = false;
+      console.log(`[${new Date().toISOString()}] API key saved: ${API_KEY ? 'Set' : 'Empty'}`);
       apiKeyStatus.textContent = API_KEY ? 'API key saved. Fetching prices...' : 'No API key provided.';
       await fetchMarketPrices(trades.map(t => t.symbol));
       precomputePL();
@@ -52,63 +56,112 @@ document.addEventListener('DOMContentLoaded', async () => {
     { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
     { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] },
     { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
-    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] }
+    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] },
+    { symbol: 'BABA', qty: 5, entry: 100, entryDate: '2025-10-13', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] }
   ];
-  let marketPrices = {};
+
+  // ========= Fetch Yahoo Finance Price =========
+  async function fetchYahooPrice(symbol) {
+    try {
+      const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${symbol}`);
+      }
+      const data = await response.json();
+      if (data.chart.error) {
+        throw new Error(data.chart.error.description || 'Yahoo API error');
+      }
+      const price = data.chart.result[0].meta.regularMarketPrice;
+      console.log(`[${new Date().toISOString()}] Yahoo fetched price for ${symbol}: ${price}`);
+      return asNumber(price, 0);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Yahoo error for ${symbol}:`, error.message);
+      return null;
+    }
+  }
+
+  // ========= Fetch Alpha Vantage Price =========
+  async function fetchAlphaVantagePrice(symbol) {
+    if (!API_KEY) return null;
+    try {
+      const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${symbol}`);
+      }
+      const data = await response.json();
+      if (data['Information'] && data['Information'].includes('call frequency')) {
+        throw new Error('Rate limit exceeded');
+      }
+      if (data['Information']) {
+        throw new Error('Invalid API key');
+      }
+      const quote = data['Global Quote'];
+      if (quote && quote['05. price']) {
+        const price = asNumber(quote['05. price'], 0);
+        console.log(`[${new Date().toISOString()}] Alpha Vantage fetched price for ${symbol}: ${price}`);
+        return price;
+      }
+      console.warn(`[${new Date().toISOString()}] No price data for ${symbol}:`, data);
+      return null;
+  } catch (error) {
+      console.error(`[${new Date().toISOString()}] Alpha Vantage error for ${symbol}:`, error.message);
+      if (error.message.includes('Rate limit')) {
+        rateLimitHit = true;
+      }
+      return null;
+    }
+  }
 
   // ========= Fetch Real-Time Prices =========
   async function fetchMarketPrices(symbols) {
-    if (!API_KEY) {
-      console.error('Alpha Vantage API key is missing. Please set API_KEY in Settings.');
-      document.getElementById('ticker-scroll').textContent = 'API key missing. Using fallback prices.';
-      if (apiKeyStatus) apiKeyStatus.textContent = 'API key missing. Enter a valid key.';
-      trades.forEach(trade => {
-        marketPrices[trade.symbol] = asNumber(trade.entry, 0); // Fallback to entry price
-      });
-      return;
+    // Check cached prices (valid for 5 minutes)
+    const now = new Date();
+    if (lastPriceFetchTime && (now - lastPriceFetchTime) < 5 * 60 * 1000 && Object.keys(marketPrices).length > 0) {
+      console.log(`[${new Date().toISOString()}] Using cached prices from ${lastPriceFetchTime.toISOString()}`);
+      document.getElementById('ticker-scroll').textContent = 'Using cached market data';
+      if (apiKeyStatus) apiKeyStatus.textContent = 'Using cached prices (recent).';
+      return true;
     }
 
     const uniqueSymbols = [...new Set(symbols)];
-    const batchSize = 5;
+    let success = true;
+    const batchSize = 5; // Batch for Alpha Vantage rate limits
     for (let i = 0; i < uniqueSymbols.length; i += batchSize) {
       const batch = uniqueSymbols.slice(i, i + batchSize);
       const promises = batch.map(async (symbol) => {
-        try {
-          const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
-          if (!response.ok) {
-            throw new Error(`HTTP error ${response.status} for ${symbol}`);
-          }
-          const data = await response.json();
-          if (data['Note'] && data['Note'].includes('call frequency')) {
-            throw new Error('Rate limit exceeded');
-          }
-          const quote = data['Global Quote'];
-          if (quote && quote['05. price']) {
-            marketPrices[symbol] = asNumber(quote['05. price'], 0);
-            console.log(`[${new Date().toISOString()}] Fetched price for ${symbol}: ${marketPrices[symbol]}`);
-          } else {
-            console.warn(`[${new Date().toISOString()}] No price data for ${symbol}:`, data);
-            marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
-          }
-        } catch (error) {
-          console.error(`[${new Date().toISOString()}] Error fetching price for ${symbol}:`, error.message);
-          if (error.message.includes('Rate limit')) {
-            rateLimitHit = true;
-            document.getElementById('ticker-scroll').textContent = 'Rate limit exceeded. Using fallback prices.';
-            if (apiKeyStatus) apiKeyStatus.textContent = 'Rate limit exceeded. Try again later or get a new API key.';
-          } else if (error.message.includes('Invalid API key')) {
-            document.getElementById('ticker-scroll').textContent = 'Invalid API key. Please check Settings.';
-            if (apiKeyStatus) apiKeyStatus.textContent = 'Invalid API key. Enter a valid key.';
-          }
-          marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
+        // Try Yahoo Finance first
+        let price = await fetchYahooPrice(symbol);
+        if (price === null) {
+          // Fallback to Alpha Vantage
+          price = await fetchAlphaVantagePrice(symbol);
         }
+        if (price === null) {
+          console.warn(`[${new Date().toISOString()}] No price data for ${symbol} from Yahoo or Alpha Vantage`);
+          price = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
+          success = false;
+        }
+        marketPrices[symbol] = price;
       });
       await Promise.all(promises);
-      // Delay to avoid rate limits (1.2s delay)
-      if (i + batchSize < uniqueSymbols.length) {
+      // Delay for Alpha Vantage rate limits
+      if (i + batchSize < uniqueSymbols.length && API_KEY && !rateLimitHit) {
         await new Promise(resolve => setTimeout(resolve, 1200));
       }
     }
+
+    if (success) {
+      localStorage.setItem('marketPrices', JSON.stringify(marketPrices));
+      localStorage.setItem('lastPriceFetchTime', new Date().toISOString());
+      if (apiKeyStatus) apiKeyStatus.textContent = 'Prices updated successfully.';
+    } else {
+      document.getElementById('ticker-scroll').textContent = rateLimitHit
+        ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
+        : 'Failed to fetch some prices. Using cached or entry prices.';
+      if (apiKeyStatus) apiKeyStatus.textContent = rateLimitHit
+        ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
+        : 'Failed to fetch some prices. Check API key or network.';
+    }
+    return success;
   }
 
   // ========= Real-Time Price Updates =========
@@ -116,12 +169,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (priceUpdateInterval) {
       clearInterval(priceUpdateInterval);
     }
-    if (!API_KEY || rateLimitHit) return;
     priceUpdateInterval = setInterval(async () => {
       if (trades.length > 0 && !rateLimitHit) {
         const success = await fetchMarketPrices(trades.map(t => t.symbol));
         if (success) {
-          if (apiKeyStatus) apiKeyStatus.textContent = 'Prices updated successfully.';
           precomputePL();
           renderAll();
         } else if (rateLimitHit) {
@@ -721,6 +772,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
