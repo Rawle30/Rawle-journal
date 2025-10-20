@@ -1,4 +1,4 @@
-const CACHE_NAME = 'journal-cache-v2';
+const CACHE_NAME = 'journal-cache-v5';
 const urlsToCache = [
   'index.html',
   'style.css',
@@ -35,6 +35,13 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 
 
 
