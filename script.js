@@ -49,11 +49,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           marketPrices[symbol] = asNumber(quote['05. price'], 0);
         } else {
           console.warn(`No price data for ${symbol}`);
-          marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0; // Fallback to entry price
+          marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
         }
       } catch (error) {
         console.error(`Error fetching price for ${symbol}:`, error);
-        marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0; // Fallback to entry price
+        marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
       }
     });
     await Promise.all(promises);
@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ========= 💾 Save Edited Trade =========
-  function saveEditedTrade(row, index) {
+  async function saveEditedTrade(row, index) {
     const cells = row.querySelectorAll('td');
     const updatedTrade = {
       symbol: String(cells[0].querySelector('input')?.value || ''),
@@ -176,6 +176,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     trades[index] = updatedTrade;
     localStorage.setItem('trades', JSON.stringify(trades));
+    await fetchMarketPrices([updatedTrade.symbol]);
     renderAll();
   }
 
@@ -416,7 +417,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       tradeForm.reset();
       localStorage.setItem('trades', JSON.stringify(trades));
-      await fetchMarketPrices([newTrade.symbol]); // Fetch price for new symbol
+      await fetchMarketPrices([newTrade.symbol]);
       renderAll();
     });
   }
@@ -514,7 +515,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       trades.push(...newTrades);
       localStorage.setItem('trades', JSON.stringify(trades));
-      await fetchMarketPrices(newTrades.map(t => t.symbol)); // Fetch prices for new symbols
+      await fetchMarketPrices(newTrades.map(t => t.symbol));
       renderAll();
     };
     reader.readAsText(file);
@@ -591,15 +592,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderPL();
     renderPortfolio();
   }
-  await renderAll();
 
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
+    // Unregister old Service Workers to prevent conflicts
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (let registration of registrations) {
+        registration.unregister().then(() => console.log('Old Service Worker unregistered'));
+      }
+    }).catch(err => console.error('Error unregistering old Service Workers:', err));
+
+    // Register new Service Worker
     navigator.serviceWorker.register('sw.js')
-      .then(() => console.log('Service Worker registered'))
+      .then(reg => {
+        console.log('Service Worker registered');
+        // Force update if a new version is waiting
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      })
       .catch(err => console.error('Service Worker registration failed:', err));
+
+    // Listen for Service Worker updates
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('Service Worker controller changed, reloading...');
+      window.location.reload();
+    });
   }
+
+  // Initialize dashboard
+  await renderAll();
 });
+
 
 
 
