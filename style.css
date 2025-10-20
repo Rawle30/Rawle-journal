@@ -178,7 +178,7 @@ button {
 button:hover {
   background-color: #4ac0c7;
 }
-.edit-btn, .delete-btn, .save-btn, .cancel-btn {
+.edit-btn, .delete-btn, .save-btn, .cancel-btn, #saveApiKey {
   margin-right: 0.3em;
   padding: 0.2em 0.5em;
   font-size: 0.8em;
@@ -189,10 +189,10 @@ button:hover {
 .delete-btn:hover {
   background-color: #c50707;
 }
-.save-btn {
+.save-btn, #saveApiKey {
   background-color: var(--green);
 }
-.save-btn:hover {
+.save-btn:hover, #saveApiKey:hover {
   background-color: #6cc04a;
 }
 #dropZone {
@@ -208,18 +208,18 @@ button:hover {
   background-color: #e0f7ff;
   color: var(--blue);
 }
-.trade-entry form {
+.trade-entry form, #settings form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 0.3em;
   flex-grow: 1;
 }
-.trade-entry label {
+.trade-entry label, #settings label {
   display: flex;
   flex-direction: column;
   font-weight: bold;
 }
-.trade-entry button {
+.trade-entry button, #settings button {
   grid-column: span 2;
   margin-top: 0.3em;
 }
@@ -304,10 +304,10 @@ body.dark .delete-btn {
 body.dark .delete-btn:hover {
   background-color: #a50606;
 }
-body.dark .save-btn {
+body.dark .save-btn, body.dark #saveApiKey {
   background-color: #6cc04a;
 }
-body.dark .save-btn:hover {
+body.dark .save-btn:hover, body.dark #saveApiKey:hover {
   background-color: #5aa03b;
 }
 /* 🧱 Compact Mode */
@@ -324,7 +324,7 @@ body.compact .filter-controls {
   margin: 0.2em 0;
   gap: 0.2em;
 }
-body.compact .trade-entry form {
+body.compact .trade-entry form, body.compact #settings form {
   gap: 0.2em;
 }
 body.compact .equity-curve canvas,
@@ -379,7 +379,7 @@ body.compact .table-container {
     align-items: center;
     padding: 0.4em;
   }
-  .trade-entry form {
+  .trade-entry form, #settings form {
     grid-template-columns: 1fr;
   }
   section {
