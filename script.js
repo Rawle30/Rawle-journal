@@ -82,6 +82,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     return (price - entry) * qty * multiplier;
   };
 
+  // ========= Precompute P/L =========
+  function precomputePL() {
+    trades.forEach(trade => {
+      trade.pl = getPL(trade);
+    });
+  }
+
   // ========= 📋 Render Trades =========
   function renderTrades(filteredTrades = trades) {
     const tbody = document.getElementById('tradeRows');
@@ -91,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
       const currentPrice = marketPrices[trade.symbol] ? fmtUSD(marketPrices[trade.symbol]) : '-';
-      const pl = getPL(trade);
+      const pl = trade.pl || getPL(trade);
       const plHtml = formatPL(pl);
       row.innerHTML = `
         <td>${trade.symbol ?? ''}</td>
@@ -177,6 +184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     trades[index] = updatedTrade;
     localStorage.setItem('trades', JSON.stringify(trades));
     await fetchMarketPrices([updatedTrade.symbol]);
+    precomputePL(); // Precompute after update
     renderAll();
   }
 
@@ -185,6 +193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (confirm('Are you sure you want to delete this trade?')) {
       trades.splice(index, 1);
       localStorage.setItem('trades', JSON.stringify(trades));
+      precomputePL(); // Precompute after delete
       renderAll();
     }
   }
@@ -212,7 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const dates = [...new Set(sortedTrades.map(t => t.entryDate))];
       const equityData = dates.map(date => {
         const dailyTrades = sortedTrades.filter(t => t.entryDate <= date);
-        return dailyTrades.reduce((sum, t) => sum + getPL(t), 0);
+        return dailyTrades.reduce((sum, t) => sum + (t.pl || getPL(t)), 0); // Use precomputed P/L
       });
       const chart = new Chart(equityCanvas, {
         type: chartType,
@@ -256,7 +265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       destroyChartIfAny(symbolCanvas);
       const symbols = {};
       trades.forEach(t => {
-        const value = getPL(t);
+        const value = t.pl || getPL(t);
         symbols[t.symbol] = (symbols[t.symbol] || 0) + value;
       });
       const chart = new Chart(symbolCanvas, {
@@ -287,7 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       destroyChartIfAny(brokerCanvas);
       const brokers = {};
       trades.forEach(t => {
-        const value = getPL(t);
+        const value = t.pl || getPL(t);
         const broker = t.broker || 'Unknown';
         brokers[broker] = (brokers[broker] || 0) + value;
       });
@@ -329,7 +338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!tbody || !combined) return;
     const brokers = {};
     trades.forEach(trade => {
-      const pl = asNumber(getPL(trade), 0);
+      const pl = trade.pl || asNumber(getPL(trade), 0);
       const broker = trade.broker || 'Unknown';
       if (!brokers[broker]) brokers[broker] = { realized: 0, unrealized: 0 };
       if (trade.exit != null) {
@@ -418,6 +427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tradeForm.reset();
       localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices([newTrade.symbol]);
+      precomputePL(); // Precompute after update
       renderAll();
     });
   }
@@ -516,6 +526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       trades.push(...newTrades);
       localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices(newTrades.map(t => t.symbol));
+      precomputePL(); // Precompute after import
       renderAll();
     };
     reader.readAsText(file);
@@ -582,17 +593,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     link.remove();
   }
 
-  // ========= 🚀 Initialize Dashboard =========
-  async function renderAll() {
-    const symbols = trades.map(t => t.symbol);
-    await fetchMarketPrices(symbols);
-    renderTrades();
-    renderCharts();
-    renderTicker();
-    renderPL();
-    renderPortfolio();
-  }
-
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
     // Unregister old Service Workers to prevent conflicts
@@ -623,6 +623,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize dashboard
   await renderAll();
 });
+
 
 
 
