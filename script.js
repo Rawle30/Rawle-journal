@@ -6,7 +6,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
-  const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/'; // Public CORS proxy for development
+  const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // Reliable CORS proxy
+
+  // ========= Symbol Validation =========
+  const isValidSymbol = (symbol) => /^[A-Z]{1,5}$/.test(symbol);
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
@@ -63,6 +66,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ========= Fetch Yahoo Finance Price =========
   async function fetchYahooPrice(symbol) {
+    if (!isValidSymbol(symbol)) {
+      console.warn(`[${new Date().toISOString()}] Invalid symbol: ${symbol}`);
+      return null;
+    }
     try {
       const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`);
       if (!response.ok) {
@@ -84,6 +91,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= Fetch Alpha Vantage Price =========
   async function fetchAlphaVantagePrice(symbol) {
     if (!API_KEY) return null;
+    if (!isValidSymbol(symbol)) {
+      console.warn(`[${new Date().toISOString()}] Invalid symbol: ${symbol}`);
+      return null;
+    }
     try {
       const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
       if (!response.ok) {
@@ -126,10 +137,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const uniqueSymbols = [...new Set(symbols)];
     let success = true;
+    let invalidSymbols = [];
     const batchSize = 5; // Batch for Alpha Vantage rate limits
     for (let i = 0; i < uniqueSymbols.length; i += batchSize) {
       const batch = uniqueSymbols.slice(i, i + batchSize);
       const promises = batch.map(async (symbol) => {
+        if (!isValidSymbol(symbol)) {
+          invalidSymbols.push(symbol);
+          marketPrices[symbol] = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
+          success = false;
+          return;
+        }
         // Try Yahoo Finance first
         let price = await fetchYahooPrice(symbol);
         if (price === null) {
@@ -155,12 +173,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('lastPriceFetchTime', new Date().toISOString());
       if (apiKeyStatus) apiKeyStatus.textContent = 'Prices updated successfully.';
     } else {
-      document.getElementById('ticker-scroll').textContent = rateLimitHit
+      let message = rateLimitHit
         ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
         : 'Failed to fetch some prices. Using cached or entry prices.';
-      if (apiKeyStatus) apiKeyStatus.textContent = rateLimitHit
-        ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
-        : 'Failed to fetch some prices. Check network or try a different API key.';
+      if (invalidSymbols.length > 0) {
+        message = `Invalid symbols: ${invalidSymbols.join(', ')}. ${message}`;
+      }
+      document.getElementById('ticker-scroll').textContent = message;
+      if (apiKeyStatus) apiKeyStatus.textContent = message;
     }
     return success;
   }
@@ -262,7 +282,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker'];
     fields.forEach((field, i) => {
       const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : field === 'multiplier' && trade.type === 'option' ? 100 : '');
-      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : ''}>`;
+      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : field === 'symbol' ? 'pattern="[A-Z]{1,5}" title="Enter a valid stock symbol (1-5 uppercase letters)"' : ''}>`;
       if (field === 'type') {
         cells[i].innerHTML = `
           <select>
@@ -298,8 +318,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= 💾 Save Edited Trade =========
   async function saveEditedTrade(row, index) {
     const cells = row.querySelectorAll('td');
+    const symbol = String(cells[0].querySelector('input')?.value || '');
+    if (!isValidSymbol(symbol)) {
+      alert(`Invalid symbol: ${symbol}. Use 1-5 uppercase letters (e.g., AAPL).`);
+      return;
+    }
     const updatedTrade = {
-      symbol: String(cells[0].querySelector('input')?.value || ''),
+      symbol,
       qty: asNumber(cells[1].querySelector('input')?.value, 0),
       entry: asNumber(cells[2].querySelector('input')?.value, 0),
       entryDate: cells[3].querySelector('input')?.value || '',
@@ -540,8 +565,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     tradeForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!tradeForm.symbol || !tradeForm.qty || !tradeForm.entry || !tradeForm.date) return;
+      const symbol = String(tradeForm.symbol.value.trim());
+      if (!isValidSymbol(symbol)) {
+        alert(`Invalid symbol: ${symbol}. Use 1-5 uppercase letters (e.g., AAPL).`);
+        return;
+      }
       const newTrade = {
-        symbol: String(tradeForm.symbol.value.trim()),
+        symbol,
         qty: asNumber(tradeForm.qty.value, 0),
         entry: asNumber(tradeForm.entry.value, 0),
         entryDate: tradeForm.date.value || '',
@@ -646,6 +676,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const lines = text.split('\n').slice(1).filter(line => line.trim());
       const newTrades = lines.map(line => {
         const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
+        if (!isValidSymbol(symbol)) {
+          console.warn(`[${new Date().toISOString()}] Invalid symbol in CSV: ${symbol}`);
+          return null;
+        }
         return {
           symbol: String(symbol || ''),
           qty: asNumber(qty, 0),
@@ -658,7 +692,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           broker: broker || '',
           tags: tags ? tags.split(';').map(t => t.trim()) : []
         };
-      });
+      }).filter(trade => trade !== null);
       trades.push(...newTrades);
       localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices(newTrades.map(t => t.symbol));
