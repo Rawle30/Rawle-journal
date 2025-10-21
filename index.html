@@ -156,7 +156,7 @@
     <section class="trade-entry">
       <h2>Add / Edit Trade</h2>
       <form id="tradeForm">
-        <label>Symbol: <input type="text" name="symbol" required /></label>
+        <label>Symbol: <input type="text" name="symbol" required pattern="[A-Z]{1,5}" title="Enter a valid stock symbol (1-5 uppercase letters)" /></label>
         <label>Qty: <input type="number" name="qty" required /></label>
         <label>Entry Price: <input type="number" name="entry" step="0.01" required /></label>
         <label>Entry Date: <input type="date" name="date" required /></label>
@@ -188,7 +188,6 @@
   <script src="script.js"></script>
 </body>
 </html>
-
 
 
 
