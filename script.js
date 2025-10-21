@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
+  const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/'; // Public CORS proxy for development
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
@@ -43,7 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('apiKey', API_KEY);
       rateLimitHit = false;
       console.log(`[${new Date().toISOString()}] API key saved: ${API_KEY ? 'Set' : 'Empty'}`);
-      apiKeyStatus.textContent = API_KEY ? 'API key saved. Fetching prices...' : 'No API key provided.';
+      apiKeyStatus.textContent = API_KEY ? 'API key saved. Fetching prices...' : 'No API key provided (using Yahoo Finance).';
       await fetchMarketPrices(trades.map(t => t.symbol));
       precomputePL();
       renderAll();
@@ -63,7 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= Fetch Yahoo Finance Price =========
   async function fetchYahooPrice(symbol) {
     try {
-      const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`);
+      const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} for ${symbol}`);
       }
@@ -103,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       console.warn(`[${new Date().toISOString()}] No price data for ${symbol}:`, data);
       return null;
-  } catch (error) {
+    } catch (error) {
       console.error(`[${new Date().toISOString()}] Alpha Vantage error for ${symbol}:`, error.message);
       if (error.message.includes('Rate limit')) {
         rateLimitHit = true;
@@ -159,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         : 'Failed to fetch some prices. Using cached or entry prices.';
       if (apiKeyStatus) apiKeyStatus.textContent = rateLimitHit
         ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
-        : 'Failed to fetch some prices. Check API key or network.';
+        : 'Failed to fetch some prices. Check network or try a different API key.';
     }
     return success;
   }
