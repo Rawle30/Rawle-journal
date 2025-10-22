@@ -30,33 +30,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ========= 📊 Trade Data =========
   let trades = localStorage.getItem('trades') ? JSON.parse(localStorage.getItem('trades')) : [
-    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
-    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] },
-    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
-    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] }
+    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'], comments: 'Bullish trend' },
+    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'], comments: 'Long-term hold' },
+    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'], comments: 'Quick scalp' },
+    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'], comments: 'High volatility' }
   ];
   let marketPrices = {};
 
   // ========= Fetch Real-Time Prices =========
   async function fetchMarketPrices(symbols) {
-    const uniqueSymbols = [...new Set(symbols)];
-    const promises = uniqueSymbols.map(async (symbol) => {
-      try {
-        const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
-        const data = await response.json();
-        const quote = data['Global Quote'];
-        if (quote && quote['05. price']) {
-          marketPrices[symbol] = asNumber(quote['05. price'], 0);
-        } else {
-          console.warn(`No price data for ${symbol}`);
+    try {
+      const uniqueSymbols = [...new Set(symbols)];
+      const promises = uniqueSymbols.map(async (symbol) => {
+        try {
+          const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+          const data = await response.json();
+          const quote = data['Global Quote'];
+          if (quote && quote['05. price']) {
+            marketPrices[symbol] = asNumber(quote['05. price'], 0);
+          } else {
+            console.warn(`No price data for ${symbol}`);
+            marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
+          }
+        } catch (error) {
+          console.error(`Error fetching price for ${symbol}:`, error);
           marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
         }
-      } catch (error) {
-        console.error(`Error fetching price for ${symbol}:`, error);
+      });
+      await Promise.all(promises);
+    } catch (error) {
+      console.error('Failed to fetch market prices:', error);
+      // Fallback to entry prices for all symbols
+      symbols.forEach(symbol => {
         marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
-      }
-    });
-    await Promise.all(promises);
+      });
+    }
   }
 
   // ========= 💰 Helpers =========
@@ -75,23 +83,81 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   const getPL = (trade) => {
     const entry = asNumber(trade.entry, 0);
-    const currentPrice = marketPrices[trade.symbol] || entry;
-    const price = asNumber(trade.exit ?? currentPrice, entry);
+    const mkt = marketPrices[trade.symbol] || entry;
+    const price = asNumber(trade.exit ?? mkt, entry);
     const qty = asNumber(trade.qty, 0);
     const multiplier = trade.type === 'option' ? asNumber(trade.multiplier, 100) : 1;
     return (price - entry) * qty * multiplier;
   };
 
+  // ========= Precompute P/L =========
+  function precomputePL() {
+    trades.forEach(trade => {
+      trade.pl = getPL(trade);
+    });
+  }
+
+  // ========= Calculate Trade Performance Analytics =========
+  function calculateAnalytics() {
+    if (trades.length === 0) {
+      return {
+        winRate: 0,
+        avgPL: 0,
+        profitFactor: 0,
+        expectancy: 0
+      };
+    }
+    const totalTrades = trades.length;
+    const winningTrades = trades.filter(trade => (trade.pl || getPL(trade)) > 0).length;
+    const winRate = (winningTrades / totalTrades) * 100;
+    const totalPL = trades.reduce((sum, trade) => sum + (trade.pl || getPL(trade)), 0);
+    const avgPL = totalPL / totalTrades;
+    const grossProfit = trades.reduce((sum, trade) => {
+      const pl = trade.pl || getPL(trade);
+      return pl > 0 ? sum + pl : sum;
+    }, 0);
+    const grossLoss = Math.abs(trades.reduce((sum, trade) => {
+      const pl = trade.pl || getPL(trade);
+      return pl < 0 ? sum + pl : sum;
+    }, 0));
+    const profitFactor = grossLoss === 0 ? (grossProfit === 0 ? 0 : Infinity) : grossProfit / grossLoss;
+    const avgWin = winningTrades === 0 ? 0 : grossProfit / winningTrades;
+    const avgLoss = (totalTrades - winningTrades) === 0 ? 0 : grossLoss / (totalTrades - winningTrades);
+    const expectancy = (winRate / 100) * avgWin - ((1 - winRate / 100) * avgLoss);
+    return {
+      winRate: winRate.toFixed(2),
+      avgPL: avgPL.toFixed(2),
+      profitFactor: profitFactor === Infinity ? '∞' : profitFactor.toFixed(2),
+      expectancy: expectancy.toFixed(2)
+    };
+  }
+
+  // ========= Render Trade Performance Analytics =========
+  function renderAnalytics() {
+    const analytics = calculateAnalytics();
+    const winRateEl = document.getElementById('winRate');
+    const avgPLEl = document.getElementById('avgPL');
+    const profitFactorEl = document.getElementById('profitFactor');
+    const expectancyEl = document.getElementById('expectancy');
+    if (winRateEl) winRateEl.textContent = `${analytics.winRate}%`;
+    if (avgPLEl) avgPLEl.innerHTML = formatPL(analytics.avgPL);
+    if (profitFactorEl) profitFactorEl.textContent = analytics.profitFactor;
+    if (expectancyEl) expectancyEl.innerHTML = formatPL(analytics.expectancy);
+  }
+
   // ========= 📋 Render Trades =========
   function renderTrades(filteredTrades = trades) {
     const tbody = document.getElementById('tradeRows');
     const tradeCount = document.getElementById('tradeCount');
-    if (!tbody || !tradeCount) return;
+    if (!tbody || !tradeCount) {
+      console.error('Missing tradeRows or tradeCount elements');
+      return;
+    }
     tbody.innerHTML = '';
     filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
       const currentPrice = marketPrices[trade.symbol] ? fmtUSD(marketPrices[trade.symbol]) : '-';
-      const pl = getPL(trade);
+      const pl = trade.pl || getPL(trade);
       const plHtml = formatPL(pl);
       row.innerHTML = `
         <td>${trade.symbol ?? ''}</td>
@@ -105,6 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td data-broker="${trade.broker ?? ''}">${trade.broker ?? ''}</td>
         <td class="current-price">${currentPrice}</td>
         <td class="pl">${plHtml}</td>
+        <td class="comments">${trade.comments ?? ''}</td>
         <td>
           <button type="button" class="edit-btn">Edit</button>
           <button type="button" class="delete-btn">Delete</button>
@@ -123,7 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function enableEditMode(row, index) {
     const trade = trades[index];
     const cells = row.querySelectorAll('td');
-    const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker'];
+    const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker', 'comments'];
     fields.forEach((field, i) => {
       const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : field === 'multiplier' && trade.type === 'option' ? 100 : '');
       cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : ''}>`;
@@ -172,11 +239,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       multiplier: asNumber(cells[6].querySelector('input')?.value, 1),
       type: cells[7].querySelector('select')?.value || 'stock',
       broker: cells[8].querySelector('select')?.value || '',
+      comments: cells[9].querySelector('input')?.value || '',
       tags: trades[index].tags || []
     };
     trades[index] = updatedTrade;
     localStorage.setItem('trades', JSON.stringify(trades));
     await fetchMarketPrices([updatedTrade.symbol]);
+    precomputePL();
     renderAll();
   }
 
@@ -185,20 +254,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (confirm('Are you sure you want to delete this trade?')) {
       trades.splice(index, 1);
       localStorage.setItem('trades', JSON.stringify(trades));
+      precomputePL();
       renderAll();
     }
   }
 
   // ========= 📈 Render Charts =========
-  function destroyChartIfAny(canvas) {
-    if (canvas?._chartInstance?.destroy) {
-      canvas._chartInstance.destroy();
-      canvas._chartInstance = null;
-    }
-  }
   function renderCharts() {
     if (typeof Chart === 'undefined') {
       console.warn('Chart.js not loaded');
+      const chartError = document.getElementById('chartError');
+      if (chartError) chartError.style.display = 'block';
       return;
     }
     const chartTypeSelect = document.getElementById('chartType');
@@ -212,7 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const dates = [...new Set(sortedTrades.map(t => t.entryDate))];
       const equityData = dates.map(date => {
         const dailyTrades = sortedTrades.filter(t => t.entryDate <= date);
-        return dailyTrades.reduce((sum, t) => sum + getPL(t), 0);
+        return dailyTrades.reduce((sum, t) => sum + (t.pl || getPL(t)), 0);
       });
       const chart = new Chart(equityCanvas, {
         type: chartType,
@@ -256,7 +322,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       destroyChartIfAny(symbolCanvas);
       const symbols = {};
       trades.forEach(t => {
-        const value = getPL(t);
+        const value = t.pl || getPL(t);
         symbols[t.symbol] = (symbols[t.symbol] || 0) + value;
       });
       const chart = new Chart(symbolCanvas, {
@@ -287,7 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       destroyChartIfAny(brokerCanvas);
       const brokers = {};
       trades.forEach(t => {
-        const value = getPL(t);
+        const value = t.pl || getPL(t);
         const broker = t.broker || 'Unknown';
         brokers[broker] = (brokers[broker] || 0) + value;
       });
@@ -314,10 +380,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function destroyChartIfAny(canvas) {
+    if (canvas?._chartInstance?.destroy) {
+      canvas._chartInstance.destroy();
+      canvas._chartInstance = null;
+    }
+  }
+
   // ========= 📰 Render Ticker =========
   function renderTicker() {
     const el = document.getElementById('ticker-scroll');
-    if (!el) return;
+    if (!el) {
+      console.error('Missing ticker-scroll element');
+      return;
+    }
     const parts = Object.entries(marketPrices).map(([sym, price]) => `${sym}: ${fmtUSD(price)}`);
     el.textContent = parts.join(' | ');
   }
@@ -326,10 +402,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderPL() {
     const tbody = document.getElementById('plRows');
     const combined = document.getElementById('combinedPL');
-    if (!tbody || !combined) return;
+    if (!tbody || !combined) {
+      console.error('Missing plRows or combinedPL elements');
+      return;
+    }
     const brokers = {};
     trades.forEach(trade => {
-      const pl = asNumber(getPL(trade), 0);
+      const pl = trade.pl || asNumber(getPL(trade), 0);
       const broker = trade.broker || 'Unknown';
       if (!brokers[broker]) brokers[broker] = { realized: 0, unrealized: 0 };
       if (trade.exit != null) {
@@ -360,11 +439,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= 🧮 Render Portfolio Summary =========
   function renderPortfolio() {
     const container = document.getElementById('portfolio-summary');
-    if (!container) return;
+    if (!container) {
+      console.error('Missing portfolio-summary element');
+      return;
+    }
     const symbols = {};
     let invested = 0;
     let currentValue = 0;
-    trades.forEach(trade => {
+    const openTrades = trades.filter(trade => trade.exit === null);
+    openTrades.forEach(trade => {
       const sym = trade.symbol ?? '';
       const qty = asNumber(trade.qty, 0);
       const entry = asNumber(trade.entry, 0);
@@ -382,11 +465,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       .join('');
     container.innerHTML = `
       <p><strong>Total Positions:</strong> ${trades.length}</p>
-      <p><strong>Total Invested:</strong> ${fmtUSD(invested)}</p>
-      <p><strong>Current Value:</strong> ${fmtUSD(currentValue)}</p>
-      <p><strong>Unrealized P/L:</strong> ${formatPL(netPL)}</p>
-      <h3>Holdings by Symbol:</h3>
-      <ul>${holdings}</ul>
+      <p><strong>Open Positions:</strong> ${openTrades.length}</p>
+      <p><strong>Total Invested (Open):</strong> ${fmtUSD(invested)}</p>
+      <p><strong>Current Value (Open):</strong> ${fmtUSD(currentValue)}</p>
+      <p><strong>Unrealized P/L (Open):</strong> ${formatPL(netPL)}</p>
+      <h3>Holdings by Symbol (Open):</h3>
+      <ul>${holdings || '<li>No open positions</li>'}</ul>
     `;
   }
 
@@ -406,7 +490,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         multiplier: tradeForm.multiplier.value ? asNumber(tradeForm.multiplier.value, 1) : (tradeForm.type.value === 'option' ? 100 : 1),
         type: tradeForm.type.value || 'stock',
         broker: tradeForm.broker.value || '',
-        tags: tradeForm.tags.value ? tradeForm.tags.value.split(',').map(t => t.trim()) : []
+        tags: tradeForm.tags.value ? tradeForm.tags.value.split(',').map(t => t.trim()) : [],
+        comments: tradeForm.comments.value || ''
       };
       const idx = tradeForm.dataset.editIndex;
       if (idx !== undefined && idx !== null) {
@@ -418,6 +503,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tradeForm.reset();
       localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices([newTrade.symbol]);
+      precomputePL();
       renderAll();
     });
   }
@@ -426,7 +512,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags,Comments\n';
       trades.forEach(trade => {
         csv += [
           trade.symbol ?? '',
@@ -438,7 +524,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
-          trade.tags?.join(';') ?? ''
+          trade.tags?.join(';') ?? '',
+          trade.comments ? `"${trade.comments.replace(/"/g, '""')}"` : ''
         ].join(',') + '\n';
       });
       downloadCSV(csv, 'trades.csv');
@@ -450,7 +537,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (exportFilteredBtn) {
     exportFilteredBtn.addEventListener('click', () => {
       const filtered = filterTrades();
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags,Comments\n';
       filtered.forEach(trade => {
         csv += [
           trade.symbol ?? '',
@@ -462,7 +549,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
-          trade.tags?.join(';') ?? ''
+          trade.tags?.join(';') ?? '',
+          trade.comments ? `"${trade.comments.replace(/"/g, '""')}"` : ''
         ].join(',') + '\n';
       });
       downloadCSV(csv, 'filtered_trades.csv');
@@ -496,27 +584,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function handleCSVFile(file) {
     const reader = new FileReader();
     reader.onload = async (event) => {
-      const text = event.target.result;
-      const lines = text.split('\n').slice(1).filter(line => line.trim());
-      const newTrades = lines.map(line => {
-        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
-        return {
-          symbol: String(symbol || ''),
-          qty: asNumber(qty, 0),
-          entry: asNumber(entry, 0),
-          entryDate: entryDate || '',
-          exit: exit ? asNumber(exit, null) : null,
-          exitDate: exitDate || null,
-          multiplier: asNumber(multiplier, type === 'option' ? 100 : 1),
-          type: type || 'stock',
-          broker: broker || '',
-          tags: tags ? tags.split(';').map(t => t.trim()) : []
-        };
-      });
-      trades.push(...newTrades);
-      localStorage.setItem('trades', JSON.stringify(trades));
-      await fetchMarketPrices(newTrades.map(t => t.symbol));
-      renderAll();
+      try {
+        const text = event.target.result;
+        const lines = text.split('\n').slice(1).filter(line => line.trim());
+        const newTrades = lines.map(line => {
+          const parts = line.split(/(?=(?:(?:[^"]*"){2})*[^"]*$),/);
+          const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags, comments] = parts;
+          return {
+            symbol: String(symbol || ''),
+            qty: asNumber(qty, 0),
+            entry: asNumber(entry, 0),
+            entryDate: entryDate || '',
+            exit: exit ? asNumber(exit, null) : null,
+            exitDate: exitDate || null,
+            multiplier: asNumber(multiplier, type === 'option' ? 100 : 1),
+            type: type || 'stock',
+            broker: broker || '',
+            tags: tags ? tags.split(';').map(t => t.trim()) : [],
+            comments: comments ? comments.replace(/^"|"$/g, '').replace(/""/g, '"') : ''
+          };
+        });
+        trades.push(...newTrades);
+        localStorage.setItem('trades', JSON.stringify(trades));
+        await fetchMarketPrices(newTrades.map(t => t.symbol));
+        precomputePL();
+        renderAll();
+      } catch (error) {
+        console.error('Error parsing CSV:', error);
+        alert('Failed to import CSV. Please ensure the file is well-formed.');
+      }
+    };
+    reader.onerror = () => {
+      console.error('Error reading CSV file');
+      alert('Failed to read CSV file.');
     };
     reader.readAsText(file);
   }
@@ -582,35 +682,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     link.remove();
   }
 
-  // ========= 🌐 Service Worker Registration =========
-  if ('serviceWorker' in navigator) {
-    // Unregister old Service Workers to prevent conflicts
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-      for (let registration of registrations) {
-        registration.unregister().then(() => console.log('Old Service Worker unregistered'));
-      }
-    }).catch(err => console.error('Error unregistering old Service Workers:', err));
-
-    // Register new Service Worker
-    navigator.serviceWorker.register('sw.js')
-      .then(reg => {
-        console.log('Service Worker registered');
-        // Force update if a new version is waiting
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-      })
-      .catch(err => console.error('Service Worker registration failed:', err));
-
-    // Listen for Service Worker updates
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('Service Worker controller changed, reloading...');
-      window.location.reload();
-    });
+  // ========= 🚀 Render All =========
+  async function renderAll() {
+    const requiredElements = [
+      'portfolio-summary', 'tradeRows', 'tradeCount', 'plRows', 'combinedPL',
+      'ticker-scroll', 'winRate', 'avgPL', 'profitFactor', 'expectancy'
+    ];
+    if (!requiredElements.every(id => document.getElementById(id))) {
+      console.error('Missing required DOM elements:', requiredElements.filter(id => !document.getElementById(id)));
+      return;
+    }
+    try {
+      const symbols = trades.map(t => t.symbol);
+      await fetchMarketPrices(symbols);
+      precomputePL();
+      renderTrades();
+      renderCharts();
+      renderTicker();
+      renderPL();
+      renderPortfolio();
+      renderAnalytics();
+    } catch (error) {
+      console.error('Error rendering dashboard:', error);
+    }
   }
 
   // Initialize dashboard
-  await renderAll();
+  try {
+    await renderAll();
+  } catch (error) {
+    console.error('Initialization failed:', error);
+  }
 });
 
 
