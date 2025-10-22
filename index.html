@@ -77,7 +77,7 @@
               <th>Exit</th>
               <th>Exit Date</th>
               <th>Multiplier</th>
-              <th>Type</th>
+              <th>Strategy</th>
               <th>Broker</th>
               <th class="current-price">Current Price</th>
               <th class="pl">P/L</th>
@@ -163,18 +163,33 @@
     <section class="trade-entry">
       <h2>Add / Edit Trade</h2>
       <form id="tradeForm">
-        <label>Symbol: <input type="text" name="symbol" required /></label>
+        <label>Symbol: <input type="text" name="tradeSymbol" required /></label>
         <label>Qty: <input type="number" name="qty" required /></label>
         <label>Entry Price: <input type="number" name="entry" step="0.01" required /></label>
         <label>Entry Date: <input type="date" name="date" required /></label>
         <label>Exit Price: <input type="number" name="exit" step="0.01" /></label>
         <label>Exit Date: <input type="date" name="exitDate" /></label>
         <label>Multiplier (Options only): <input type="number" name="multiplier" value="100" /></label>
-        <label>Type:
-          <select name="type">
-            <option value="stock">Stock</option>
-            <option value="option">Option</option>
-            <option value="crypto">Crypto</option>
+        <label>Strategy:
+          <select name="strategy">
+            <option value="Long Call">Long Call</option>
+            <option value="Long Put">Long Put</option>
+            <option value="Short Call">Short Call</option>
+            <option value="Short Put">Short Put</option>
+            <option value="Bull Call Spread">Bull Call Spread</option>
+            <option value="Bear Put Spread">Bear Put Spread</option>
+            <option value="Bull Put Spread">Bull Put Spread</option>
+            <option value="Bear Call Spread">Bear Call Spread</option>
+            <option value="Straddle">Straddle</option>
+            <option value="Strangle">Strangle</option>
+            <option value="Iron Condor">Iron Condor</option>
+            <option value="Iron Butterfly">Iron Butterfly</option>
+            <option value="Butterfly Spread">Butterfly Spread</option>
+            <option value="Calendar Spread">Calendar Spread</option>
+            <option value="Covered Call">Covered Call</option>
+            <option value="Cash-Secured Put">Cash-Secured Put</option>
+            <option value="Stock">Stock</option>
+            <option value="Crypto">Crypto</option>
           </select>
         </label>
         <label>Broker:
@@ -196,7 +211,6 @@
   <script src="./script.js"></script>
 </body>
 </html>
-
 
 
 
