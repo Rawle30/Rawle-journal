@@ -157,7 +157,7 @@ th.comments, td.comments {
   margin: 0.3em 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3em;
+  gap: 0. FISHER_TRANSFORM: 3em;
   align-items: center;
 }
 input[type="text"],
@@ -193,10 +193,10 @@ button:hover {
 .delete-btn:hover {
   background-color: #c50707;
 }
-.save-btn, #saveApiKey {
+.save-btn {
   background-color: var(--green);
 }
-.save-btn:hover, #saveApiKey:hover {
+.save-btn:hover {
   background-color: #6cc04a;
 }
 #dropZone {
@@ -251,16 +251,6 @@ td[data-broker]::before {
   padding: 0.15em 0.3em;
   border-radius: 3px;
   margin-right: 0.3em;
-}
-#loadError, #chartError, #apiKeyStatus.error {
-  background-color: #ffe6e6;
-  padding: 0.5em;
-  border-radius: 3px;
-}
-#apiKeyStatus.success {
-  background-color: #e6ffe6;
-  padding: 0.5em;
-  border-radius: 3px;
 }
 /* 🌙 Dark Mode */
 body.dark {
@@ -318,17 +308,11 @@ body.dark .delete-btn {
 body.dark .delete-btn:hover {
   background-color: #a50606;
 }
-body.dark .save-btn, body.dark #saveApiKey {
+body.dark .save-btn {
   background-color: #6cc04a;
 }
-body.dark .save-btn:hover, body.dark #saveApiKey:hover {
+body.dark .save-btn:hover {
   background-color: #5aa03b;
-}
-body.dark #loadError, body.dark #chartError, body.dark #apiKeyStatus.error {
-  background-color: #3a1c1c;
-}
-body.dark #apiKeyStatus.success {
-  background-color: #1c3a1c;
 }
 /* 🧱 Compact Mode */
 body.compact .dashboard {
