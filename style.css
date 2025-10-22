@@ -1,4 +1,3 @@
-```css
 :root {
   --red: #E4080A;
   --green: #7DDA58;
@@ -48,7 +47,7 @@ body {
   padding: 0.6em;
   width: 180px;
   position: fixed;
-  height: 100vh;
+  height: 100%;
   color: black;
 }
 .sidebar h1 {
@@ -58,22 +57,18 @@ body {
 .sidebar ul {
   list-style: none;
   padding: 0;
-  margin: 0;
 }
 .sidebar li {
   margin: 0.5em 0;
   font-weight: bold;
   cursor: pointer;
   font-size: 0.9em;
-  padding: 0.5em;
-  border-radius: 3px;
-}
-.sidebar li:hover {
-  background-color: rgba(255, 255, 255, 0.2);
 }
 .sidebar li.active {
   background-color: white;
   color: var(--blue);
+  border-radius: 3px;
+  padding: 0.2em;
 }
 .dashboard {
   margin-left: 200px;
@@ -183,7 +178,7 @@ button {
 button:hover {
   background-color: #4ac0c7;
 }
-.edit-btn, .delete-btn, .save-btn, .cancel-btn, #saveApiKey, #addAlert {
+.edit-btn, .delete-btn, .save-btn, .cancel-btn, #saveApiKey {
   margin-right: 0.3em;
   padding: 0.2em 0.5em;
   font-size: 0.8em;
@@ -194,10 +189,10 @@ button:hover {
 .delete-btn:hover {
   background-color: #c50707;
 }
-.save-btn, #saveApiKey, #addAlert {
+.save-btn, #saveApiKey {
   background-color: var(--green);
 }
-.save-btn:hover, #saveApiKey:hover, #addAlert:hover {
+.save-btn:hover, #saveApiKey:hover {
   background-color: #6cc04a;
 }
 #dropZone {
@@ -257,41 +252,6 @@ td[data-broker]::before {
   font-size: 0.85em;
   margin-top: 0.3em;
 }
-.alerts-controls {
-  margin-bottom: 1em;
-}
-#alertsList {
-  flex-grow: 1;
-  overflow-y: auto;
-}
-#alertsList li {
-  padding: 0.5em;
-  border-bottom: 1px solid #ccc;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-#alertsList li:last-child {
-  border-bottom: none;
-}
-.alert-item {
-  flex: 1;
-}
-.alert-controls {
-  margin-left: 1em;
-}
-.alert-controls button {
-  margin-left: 0.5em;
-  padding: 0.2em 0.4em;
-  font-size: 0.75em;
-}
-#alertForm {
-  margin-bottom: 1em;
-}
-#alertForm input, #alertForm select {
-  margin-right: 0.5em;
-  margin-bottom: 0.5em;
-}
 /* 🌙 Dark Mode */
 body.dark {
   background-color: #121212;
@@ -348,17 +308,14 @@ body.dark .delete-btn {
 body.dark .delete-btn:hover {
   background-color: #a50606;
 }
-body.dark .save-btn, body.dark #saveApiKey, body.dark #addAlert {
+body.dark .save-btn, body.dark #saveApiKey {
   background-color: #6cc04a;
 }
-body.dark .save-btn:hover, body.dark #saveApiKey:hover, body.dark #addAlert:hover {
+body.dark .save-btn:hover, body.dark #saveApiKey:hover {
   background-color: #5aa03b;
 }
 body.dark #apiKeyStatus {
   color: #ff6666;
-}
-body.dark #alertsList li {
-  border-bottom: 1px solid #444;
 }
 /* 🧱 Compact Mode */
 body.compact .dashboard {
@@ -428,8 +385,19 @@ body.compact .table-container {
     justify-content: space-between;
     align-items: center;
     padding: 0.4em;
+    flex-wrap: wrap;
   }
-  .trade-entry form, #settings form {
+  .sidebar ul {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .sidebar li {
+    margin: 0.2em;
+    padding: 0.2em 0.4em;
+    font-size: 0.8em;
+  }
+  .trade-entry form {
     grid-template-columns: 1fr;
   }
   section {
@@ -453,7 +421,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
-```
+
 
 
 
