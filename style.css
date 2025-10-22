@@ -157,7 +157,7 @@ th.comments, td.comments {
   margin: 0.3em 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0. FISHER_TRANSFORM: 3em;
+  gap: 0.3em;
   align-items: center;
 }
 input[type="text"],
@@ -252,6 +252,11 @@ td[data-broker]::before {
   border-radius: 3px;
   margin-right: 0.3em;
 }
+#loadError, #chartError {
+  background-color: #ffe6e6;
+  padding: 0.5em;
+  border-radius: 3px;
+}
 /* 🌙 Dark Mode */
 body.dark {
   background-color: #121212;
@@ -313,6 +318,9 @@ body.dark .save-btn {
 }
 body.dark .save-btn:hover {
   background-color: #5aa03b;
+}
+body.dark #loadError, body.dark #chartError {
+  background-color: #3a1c1c;
 }
 /* 🧱 Compact Mode */
 body.compact .dashboard {
@@ -407,6 +415,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+
 
 
 
