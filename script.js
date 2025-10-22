@@ -161,12 +161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         marketPrices[symbol] = price;
       });
-      try {
-        await Promise.all(promises);
-      } catch (error) {
-        console.error(`[${new Date().toISOString()}] Error in fetchMarketPrices batch:`, error.message);
-        success = false;
-      }
+      await Promise.all(promises);
       // Delay for Alpha Vantage rate limits
       if (i + batchSize < uniqueSymbols.length && API_KEY && !rateLimitHit) {
         await new Promise(resolve => setTimeout(resolve, 1200));
@@ -196,24 +191,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       clearInterval(priceUpdateInterval);
     }
     priceUpdateInterval = setInterval(async () => {
-      if (trades.length > 0) {
-        try {
-          const success = await fetchMarketPrices(trades.map(t => t.symbol));
-          if (success) {
-            precomputePL();
-            renderAll();
-          }
-        } catch (error) {
-          console.error(`[${new Date().toISOString()}] Price update error:`, error.message);
-          document.getElementById('ticker-scroll').textContent = 'Price update failed. Retrying...';
-          if (apiKeyStatus) apiKeyStatus.textContent = 'Price update failed. Retrying...';
+      if (trades.length > 0 && !rateLimitHit) {
+        const success = await fetchMarketPrices(trades.map(t => t.symbol));
+        if (success) {
+          precomputePL();
+          renderAll();
+        } else if (rateLimitHit) {
+          clearInterval(priceUpdateInterval);
+          priceUpdateInterval = null;
         }
       }
     }, 75000); // Update every 75 seconds
   }
 
   function restartPriceUpdates() {
-    rateLimitHit = false; // Reset rate limit flag to allow retries
     startPriceUpdates();
   }
 
