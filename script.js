@@ -1,15 +1,7 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', async () => {
-  // ========= Load API Key and Cached Prices from localStorage =========
-  let API_KEY = localStorage.getItem('apiKey') || '';
-  let marketPrices = JSON.parse(localStorage.getItem('marketPrices') || '{}');
-  let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
-  let priceUpdateInterval = null;
-  let rateLimitHit = false;
-  const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // Reliable CORS proxy
-
-  // ========= Symbol Validation =========
-  const isValidSymbol = (symbol) => /^[A-Z]{1,5}$/.test(symbol);
+  // ========= API Key for Alpha Vantage =========
+  const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
@@ -36,176 +28,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ========= API Key Input Handler =========
-  const apiKeyInput = document.getElementById('apiKeyInput');
-  const saveApiKeyBtn = document.getElementById('saveApiKey');
-  const apiKeyStatus = document.getElementById('apiKeyStatus');
-  if (apiKeyInput && saveApiKeyBtn && apiKeyStatus) {
-    apiKeyInput.value = API_KEY;
-    saveApiKeyBtn.addEventListener('click', async () => {
-      API_KEY = apiKeyInput.value.trim();
-      localStorage.setItem('apiKey', API_KEY);
-      rateLimitHit = false;
-      console.log(`[${new Date().toISOString()}] API key saved: ${API_KEY ? 'Set' : 'Empty'}`);
-      apiKeyStatus.textContent = API_KEY ? 'API key saved. Fetching prices...' : 'No API key provided (using Yahoo Finance).';
-      await fetchMarketPrices(trades.map(t => t.symbol));
-      precomputePL();
-      renderAll();
-      restartPriceUpdates();
-    });
-  }
-
   // ========= 📊 Trade Data =========
   let trades = localStorage.getItem('trades') ? JSON.parse(localStorage.getItem('trades')) : [
     { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
     { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] },
     { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
-    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] },
-    { symbol: 'BABA', qty: 5, entry: 100, entryDate: '2025-10-13', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] }
+    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] }
   ];
-
-  // ========= Fetch Yahoo Finance Price =========
-  async function fetchYahooPrice(symbol) {
-    if (!isValidSymbol(symbol)) {
-      console.warn(`[${new Date().toISOString()}] Invalid symbol: ${symbol}`);
-      return null;
-    }
-    try {
-      const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} for ${symbol}`);
-      }
-      const data = await response.json();
-      if (data.chart.error) {
-        throw new Error(data.chart.error.description || 'Yahoo API error');
-      }
-      const price = data.chart.result[0].meta.regularMarketPrice;
-      console.log(`[${new Date().toISOString()}] Yahoo fetched price for ${symbol}: ${price}`);
-      return asNumber(price, 0);
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Yahoo error for ${symbol}:`, error.message);
-      return null;
-    }
-  }
-
-  // ========= Fetch Alpha Vantage Price =========
-  async function fetchAlphaVantagePrice(symbol) {
-    if (!API_KEY) return null;
-    if (!isValidSymbol(symbol)) {
-      console.warn(`[${new Date().toISOString()}] Invalid symbol: ${symbol}`);
-      return null;
-    }
-    try {
-      const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} for ${symbol}`);
-      }
-      const data = await response.json();
-      if (data['Information'] && data['Information'].includes('call frequency')) {
-        throw new Error('Rate limit exceeded');
-      }
-      if (data['Information']) {
-        throw new Error('Invalid API key');
-      }
-      const quote = data['Global Quote'];
-      if (quote && quote['05. price']) {
-        const price = asNumber(quote['05. price'], 0);
-        console.log(`[${new Date().toISOString()}] Alpha Vantage fetched price for ${symbol}: ${price}`);
-        return price;
-      }
-      console.warn(`[${new Date().toISOString()}] No price data for ${symbol}:`, data);
-      return null;
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Alpha Vantage error for ${symbol}:`, error.message);
-      if (error.message.includes('Rate limit')) {
-        rateLimitHit = true;
-      }
-      return null;
-    }
-  }
+  let marketPrices = {};
 
   // ========= Fetch Real-Time Prices =========
   async function fetchMarketPrices(symbols) {
-    // Check cached prices (valid for 5 minutes)
-    const now = new Date();
-    if (lastPriceFetchTime && (now - lastPriceFetchTime) < 5 * 60 * 1000 && Object.keys(marketPrices).length > 0) {
-      console.log(`[${new Date().toISOString()}] Using cached prices from ${lastPriceFetchTime.toISOString()}`);
-      document.getElementById('ticker-scroll').textContent = 'Using cached market data';
-      if (apiKeyStatus) apiKeyStatus.textContent = 'Using cached prices (recent).';
-      return true;
-    }
-
     const uniqueSymbols = [...new Set(symbols)];
-    let success = true;
-    let invalidSymbols = [];
-    const batchSize = 5; // Batch for Alpha Vantage rate limits
-    for (let i = 0; i < uniqueSymbols.length; i += batchSize) {
-      const batch = uniqueSymbols.slice(i, i + batchSize);
-      const promises = batch.map(async (symbol) => {
-        if (!isValidSymbol(symbol)) {
-          invalidSymbols.push(symbol);
-          marketPrices[symbol] = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
-          success = false;
-          return;
+    const promises = uniqueSymbols.map(async (symbol) => {
+      try {
+        const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+        const data = await response.json();
+        const quote = data['Global Quote'];
+        if (quote && quote['05. price']) {
+          marketPrices[symbol] = asNumber(quote['05. price'], 0);
+        } else {
+          console.warn(`No price data for ${symbol}`);
+          marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
         }
-        // Try Yahoo Finance first
-        let price = await fetchYahooPrice(symbol);
-        if (price === null) {
-          // Fallback to Alpha Vantage
-          price = await fetchAlphaVantagePrice(symbol);
-        }
-        if (price === null) {
-          console.warn(`[${new Date().toISOString()}] No price data for ${symbol} from Yahoo or Alpha Vantage`);
-          price = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
-          success = false;
-        }
-        marketPrices[symbol] = price;
-      });
-      await Promise.all(promises);
-      // Delay for Alpha Vantage rate limits
-      if (i + batchSize < uniqueSymbols.length && API_KEY && !rateLimitHit) {
-        await new Promise(resolve => setTimeout(resolve, 1200));
+      } catch (error) {
+        console.error(`Error fetching price for ${symbol}:`, error);
+        marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
       }
-    }
-
-    if (success) {
-      localStorage.setItem('marketPrices', JSON.stringify(marketPrices));
-      localStorage.setItem('lastPriceFetchTime', new Date().toISOString());
-      if (apiKeyStatus) apiKeyStatus.textContent = 'Prices updated successfully.';
-    } else {
-      let message = rateLimitHit
-        ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
-        : 'Failed to fetch some prices. Using cached or entry prices.';
-      if (invalidSymbols.length > 0) {
-        message = `Invalid symbols: ${invalidSymbols.join(', ')}. ${message}`;
-      }
-      document.getElementById('ticker-scroll').textContent = message;
-      if (apiKeyStatus) apiKeyStatus.textContent = message;
-    }
-    return success;
-  }
-
-  // ========= Real-Time Price Updates =========
-  function startPriceUpdates() {
-    if (priceUpdateInterval) {
-      clearInterval(priceUpdateInterval);
-    }
-    priceUpdateInterval = setInterval(async () => {
-      if (trades.length > 0 && !rateLimitHit) {
-        const success = await fetchMarketPrices(trades.map(t => t.symbol));
-        if (success) {
-          precomputePL();
-          renderAll();
-        } else if (rateLimitHit) {
-          clearInterval(priceUpdateInterval);
-          priceUpdateInterval = null;
-        }
-      }
-    }, 75000); // Update every 75 seconds
-  }
-
-  function restartPriceUpdates() {
-    startPriceUpdates();
+    });
+    await Promise.all(promises);
   }
 
   // ========= 💰 Helpers =========
@@ -224,19 +75,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   const getPL = (trade) => {
     const entry = asNumber(trade.entry, 0);
-    const mkt = marketPrices[trade.symbol] || entry;
-    const price = asNumber(trade.exit ?? mkt, entry);
+    const currentPrice = marketPrices[trade.symbol] || entry;
+    const price = asNumber(trade.exit ?? currentPrice, entry);
     const qty = asNumber(trade.qty, 0);
     const multiplier = trade.type === 'option' ? asNumber(trade.multiplier, 100) : 1;
     return (price - entry) * qty * multiplier;
   };
-
-  // ========= Precompute P/L =========
-  function precomputePL() {
-    trades.forEach(trade => {
-      trade.pl = getPL(trade);
-    });
-  }
 
   // ========= 📋 Render Trades =========
   function renderTrades(filteredTrades = trades) {
@@ -247,7 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
       const currentPrice = marketPrices[trade.symbol] ? fmtUSD(marketPrices[trade.symbol]) : '-';
-      const pl = trade.pl || getPL(trade);
+      const pl = getPL(trade);
       const plHtml = formatPL(pl);
       row.innerHTML = `
         <td>${trade.symbol ?? ''}</td>
@@ -282,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker'];
     fields.forEach((field, i) => {
       const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : field === 'multiplier' && trade.type === 'option' ? 100 : '');
-      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : field === 'symbol' ? 'pattern="[A-Z]{1,5}" title="Enter a valid stock symbol (1-5 uppercase letters)"' : ''}>`;
+      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : ''}>`;
       if (field === 'type') {
         cells[i].innerHTML = `
           <select>
@@ -318,13 +162,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= 💾 Save Edited Trade =========
   async function saveEditedTrade(row, index) {
     const cells = row.querySelectorAll('td');
-    const symbol = String(cells[0].querySelector('input')?.value || '');
-    if (!isValidSymbol(symbol)) {
-      alert(`Invalid symbol: ${symbol}. Use 1-5 uppercase letters (e.g., AAPL).`);
-      return;
-    }
     const updatedTrade = {
-      symbol,
+      symbol: String(cells[0].querySelector('input')?.value || ''),
       qty: asNumber(cells[1].querySelector('input')?.value, 0),
       entry: asNumber(cells[2].querySelector('input')?.value, 0),
       entryDate: cells[3].querySelector('input')?.value || '',
@@ -338,9 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     trades[index] = updatedTrade;
     localStorage.setItem('trades', JSON.stringify(trades));
     await fetchMarketPrices([updatedTrade.symbol]);
-    precomputePL();
     renderAll();
-    restartPriceUpdates();
   }
 
   // ========= 🗑️ Delete Trade =========
@@ -348,9 +185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (confirm('Are you sure you want to delete this trade?')) {
       trades.splice(index, 1);
       localStorage.setItem('trades', JSON.stringify(trades));
-      precomputePL();
       renderAll();
-      restartPriceUpdates();
     }
   }
 
@@ -377,7 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const dates = [...new Set(sortedTrades.map(t => t.entryDate))];
       const equityData = dates.map(date => {
         const dailyTrades = sortedTrades.filter(t => t.entryDate <= date);
-        return dailyTrades.reduce((sum, t) => sum + (t.pl || getPL(t)), 0);
+        return dailyTrades.reduce((sum, t) => sum + getPL(t), 0);
       });
       const chart = new Chart(equityCanvas, {
         type: chartType,
@@ -421,7 +256,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       destroyChartIfAny(symbolCanvas);
       const symbols = {};
       trades.forEach(t => {
-        const value = t.pl || getPL(t);
+        const value = getPL(t);
         symbols[t.symbol] = (symbols[t.symbol] || 0) + value;
       });
       const chart = new Chart(symbolCanvas, {
@@ -452,7 +287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       destroyChartIfAny(brokerCanvas);
       const brokers = {};
       trades.forEach(t => {
-        const value = t.pl || getPL(t);
+        const value = getPL(t);
         const broker = t.broker || 'Unknown';
         brokers[broker] = (brokers[broker] || 0) + value;
       });
@@ -483,10 +318,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderTicker() {
     const el = document.getElementById('ticker-scroll');
     if (!el) return;
-    if (Object.keys(marketPrices).length === 0) {
-      el.textContent = 'Market data unavailable';
-      return;
-    }
     const parts = Object.entries(marketPrices).map(([sym, price]) => `${sym}: ${fmtUSD(price)}`);
     el.textContent = parts.join(' | ');
   }
@@ -498,7 +329,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!tbody || !combined) return;
     const brokers = {};
     trades.forEach(trade => {
-      const pl = trade.pl || asNumber(getPL(trade), 0);
+      const pl = asNumber(getPL(trade), 0);
       const broker = trade.broker || 'Unknown';
       if (!brokers[broker]) brokers[broker] = { realized: 0, unrealized: 0 };
       if (trade.exit != null) {
@@ -565,13 +396,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     tradeForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!tradeForm.symbol || !tradeForm.qty || !tradeForm.entry || !tradeForm.date) return;
-      const symbol = String(tradeForm.symbol.value.trim());
-      if (!isValidSymbol(symbol)) {
-        alert(`Invalid symbol: ${symbol}. Use 1-5 uppercase letters (e.g., AAPL).`);
-        return;
-      }
       const newTrade = {
-        symbol,
+        symbol: String(tradeForm.symbol.value.trim()),
         qty: asNumber(tradeForm.qty.value, 0),
         entry: asNumber(tradeForm.entry.value, 0),
         entryDate: tradeForm.date.value || '',
@@ -592,9 +418,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tradeForm.reset();
       localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices([newTrade.symbol]);
-      precomputePL();
       renderAll();
-      restartPriceUpdates();
     });
   }
 
@@ -676,10 +500,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const lines = text.split('\n').slice(1).filter(line => line.trim());
       const newTrades = lines.map(line => {
         const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
-        if (!isValidSymbol(symbol)) {
-          console.warn(`[${new Date().toISOString()}] Invalid symbol in CSV: ${symbol}`);
-          return null;
-        }
         return {
           symbol: String(symbol || ''),
           qty: asNumber(qty, 0),
@@ -692,13 +512,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           broker: broker || '',
           tags: tags ? tags.split(';').map(t => t.trim()) : []
         };
-      }).filter(trade => trade !== null);
+      });
       trades.push(...newTrades);
       localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices(newTrades.map(t => t.symbol));
-      precomputePL();
       renderAll();
-      restartPriceUpdates();
     };
     reader.readAsText(file);
   }
@@ -764,22 +582,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     link.remove();
   }
 
-  // ========= 🚀 Initialize Dashboard =========
-  async function renderAll() {
-    const symbols = trades.map(t => t.symbol);
-    await fetchMarketPrices(symbols);
-    precomputePL();
-    renderTrades();
-    renderCharts();
-    renderTicker();
-    renderPL();
-    renderPortfolio();
-  }
-
-  // Initialize and start price updates
-  await renderAll();
-  startPriceUpdates();
-
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
     // Unregister old Service Workers to prevent conflicts
@@ -806,6 +608,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.reload();
     });
   }
+
+  // Initialize dashboard
+  await renderAll();
 });
 
 
