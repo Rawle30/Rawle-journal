@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
-  const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // Reliable CORS proxy
+  const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // Reliable CORS proxy for Yahoo Finance
 
   // ========= Symbol Validation =========
   const isValidSymbol = (symbol) => /^[A-Z]{1,5}$/.test(symbol);
@@ -815,6 +815,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
