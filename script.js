@@ -12,8 +12,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(() => { loadError.style.display = 'none'; }, 5000); // Hide after 5s
   }
 
-  // ========= API Key for Alpha Vantage =========
-  const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
+  // ========= API Key Management =========
+  let API_KEY = localStorage.getItem('apiKey') || '';
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const saveApiKeyBtn = document.getElementById('saveApiKey');
+  const apiKeyStatus = document.getElementById('apiKeyStatus');
+  if (apiKeyInput && saveApiKeyBtn && apiKeyStatus) {
+    apiKeyInput.value = API_KEY;
+    saveApiKeyBtn.addEventListener('click', () => {
+      const newKey = apiKeyInput.value.trim();
+      if (newKey) {
+        API_KEY = newKey;
+        localStorage.setItem('apiKey', newKey);
+        apiKeyStatus.textContent = 'API Key saved successfully!';
+        apiKeyStatus.className = 'success';
+        apiKeyStatus.style.display = 'block';
+        setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
+        renderAll(); // Refresh data with new key
+      } else {
+        apiKeyStatus.textContent = 'Please enter a valid API key.';
+        apiKeyStatus.className = 'error';
+        apiKeyStatus.style.display = 'block';
+        setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
+      }
+    });
+  }
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
@@ -51,6 +74,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ========= Fetch Real-Time Prices =========
   async function fetchMarketPrices(symbols) {
+    if (!API_KEY) {
+      console.warn('No API key set. Using entry prices as fallback.');
+      symbols.forEach(symbol => {
+        marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
+      });
+      return;
+    }
     try {
       const uniqueSymbols = [...new Set(symbols)];
       const promises = uniqueSymbols.map(async (symbol) => {
@@ -740,8 +770,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         })
         .catch(err => {
           console.error('Service Worker registration failed:', err);
-          // Continue rendering without Service Worker
-          renderAll();
+          renderAll(); // Continue without Service Worker
         });
 
       // Listen for Service Worker updates
@@ -766,6 +795,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (loadError) loadError.style.display = 'block';
   }
 });
+
 
 
 
