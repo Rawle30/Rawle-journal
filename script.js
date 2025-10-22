@@ -1,5 +1,17 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', async () => {
+  // Check for Quirks Mode
+  if (document.compatMode === 'BackCompat') {
+    console.warn('Page is in Quirks Mode. Ensure DOCTYPE is <!DOCTYPE html> and check for HTML errors.');
+  }
+
+  // Show load error if JavaScript runs but page doesn't render
+  const loadError = document.getElementById('loadError');
+  if (loadError) {
+    loadError.style.display = 'block';
+    setTimeout(() => { loadError.style.display = 'none'; }, 5000); // Hide after 5s
+  }
+
   // ========= API Key for Alpha Vantage =========
   const API_KEY = 'YOUR_ALPHA_VANTAGE_API_KEY'; // Replace with your actual API key from https://www.alphavantage.co/support/#api-key
 
@@ -60,7 +72,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       await Promise.all(promises);
     } catch (error) {
       console.error('Failed to fetch market prices:', error);
-      // Fallback to entry prices for all symbols
       symbols.forEach(symbol => {
         marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
       });
@@ -261,7 +272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ========= 📈 Render Charts =========
   function renderCharts() {
-    if (typeof Chart === 'undefined') {
+    if (!window.Chart) {
       console.warn('Chart.js not loaded');
       const chartError = document.getElementById('chartError');
       if (chartError) chartError.style.display = 'block';
@@ -702,9 +713,49 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderPL();
       renderPortfolio();
       renderAnalytics();
+      if (loadError) loadError.style.display = 'none'; // Hide load error on success
     } catch (error) {
       console.error('Error rendering dashboard:', error);
+      if (loadError) loadError.style.display = 'block';
     }
+  }
+
+  // ========= 🌐 Service Worker Registration =========
+  if ('serviceWorker' in navigator) {
+    try {
+      // Unregister old Service Workers
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          registration.unregister().then(() => console.log('Old Service Worker unregistered'));
+        }
+      }).catch(err => console.error('Error unregistering old Service Workers:', err));
+
+      // Register new Service Worker
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => {
+          console.log('Service Worker registered');
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        })
+        .catch(err => {
+          console.error('Service Worker registration failed:', err);
+          // Continue rendering without Service Worker
+          renderAll();
+        });
+
+      // Listen for Service Worker updates
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        console.log('Service Worker controller changed, reloading...');
+        window.location.reload();
+      });
+    } catch (error) {
+      console.error('Service Worker setup failed:', error);
+      renderAll(); // Proceed without Service Worker
+    }
+  } else {
+    console.warn('Service Worker not supported in this browser');
+    renderAll(); // Proceed without Service Worker
   }
 
   // Initialize dashboard
@@ -712,8 +763,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderAll();
   } catch (error) {
     console.error('Initialization failed:', error);
+    if (loadError) loadError.style.display = 'block';
   }
 });
+
 
 
 
