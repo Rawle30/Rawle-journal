@@ -4,15 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trading Journal</title>
-  <link rel="stylesheet" href="./style.css" />
-  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <!-- Fallback for loading issues -->
-  <div id="loadError" style="display:none;color:red;text-align:center;padding:1em;">
-    Failed to load the application. Please check your internet connection or refresh the page.
-  </div>
   <!-- 🔴 Ticker and Dark Mode -->
   <header class="ticker">
     <div id="ticker-scroll">Loading market data...</div>
@@ -77,11 +73,10 @@
               <th>Exit</th>
               <th>Exit Date</th>
               <th>Multiplier</th>
-              <th>Strategy</th>
+              <th>Type</th>
               <th>Broker</th>
               <th class="current-price">Current Price</th>
               <th class="pl">P/L</th>
-              <th class="comments">Comments</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -93,11 +88,11 @@
     </section>
     <!-- Alerts -->
     <section id="alerts" class="switchable" style="display:none;">
-      <h2>Recent Alerts</h2>
-      <ul id="alertsList">
-        <li>AAPL | $150 | Above</li>
-        <li>MSFT | $200 | Below</li>
-      </ul>
+      <h2>Alerts</h2>
+      <div class="alerts-controls">
+        <button id="addAlert">Add Alert</button>
+      </div>
+      <div id="alertsList"></div>
     </section>
     <!-- Settings -->
     <section id="settings" class="switchable" style="display:none;">
@@ -107,16 +102,19 @@
         Enable Compact Mode
       </label>
       <label>
-        Alpha Vantage API Key:
+        Alpha Vantage API Key (optional for Yahoo Finance):
         <input type="text" id="apiKeyInput" placeholder="Enter your API key" />
+        <button id="saveApiKey">Save API Key</button>
       </label>
-      <button id="saveApiKey">Save API Key</button>
-      <p id="apiKeyStatus" style="display:none;"></p>
+      <p id="apiKeyStatus" style="color: var(--red);"></p>
+      <label>
+        <input type="checkbox" id="pushNotificationsToggle" />
+        Enable Push Notifications
+      </label>
     </section>
     <!-- Equity Curve Chart -->
     <section class="equity-curve">
       <h2>Equity Curve</h2>
-      <div id="chartError" style="display:none;color:red;">Failed to load Chart.js</div>
       <div class="chart-controls">
         <label for="chartType">Chart Type:</label>
         <select id="chartType">
@@ -139,10 +137,9 @@
     <!-- Risk Analytics -->
     <section class="risk-analytics">
       <h2>Risk Analytics</h2>
-      <p>Win Rate: <span id="winRate">-</span></p>
-      <p>Average P/L per Trade: <span id="avgPL">-</span></p>
-      <p>Profit Factor: <span id="profitFactor">-</span></p>
-      <p>Expectancy: <span id="expectancy">-</span></p>
+      <p>Max Drawdown: <span>-5%</span></p>
+      <p>Sharpe Ratio: <span>1.5</span></p>
+      <p>Win Rate: <span>68%</span></p>
     </section>
     <!-- Profit / Loss Summary -->
     <section class="profit-loss">
@@ -163,33 +160,18 @@
     <section class="trade-entry">
       <h2>Add / Edit Trade</h2>
       <form id="tradeForm">
-        <label>Symbol: <input type="text" name="tradeSymbol" required /></label>
+        <label>Symbol: <input type="text" name="symbol" required pattern="[A-Z]{1,5}" title="Enter a valid stock symbol (1-5 uppercase letters)" /></label>
         <label>Qty: <input type="number" name="qty" required /></label>
         <label>Entry Price: <input type="number" name="entry" step="0.01" required /></label>
         <label>Entry Date: <input type="date" name="date" required /></label>
         <label>Exit Price: <input type="number" name="exit" step="0.01" /></label>
         <label>Exit Date: <input type="date" name="exitDate" /></label>
         <label>Multiplier (Options only): <input type="number" name="multiplier" value="100" /></label>
-        <label>Strategy:
-          <select name="strategy">
-            <option value="Long Call">Long Call</option>
-            <option value="Long Put">Long Put</option>
-            <option value="Short Call">Short Call</option>
-            <option value="Short Put">Short Put</option>
-            <option value="Bull Call Spread">Bull Call Spread</option>
-            <option value="Bear Put Spread">Bear Put Spread</option>
-            <option value="Bull Put Spread">Bull Put Spread</option>
-            <option value="Bear Call Spread">Bear Call Spread</option>
-            <option value="Straddle">Straddle</option>
-            <option value="Strangle">Strangle</option>
-            <option value="Iron Condor">Iron Condor</option>
-            <option value="Iron Butterfly">Iron Butterfly</option>
-            <option value="Butterfly Spread">Butterfly Spread</option>
-            <option value="Calendar Spread">Calendar Spread</option>
-            <option value="Covered Call">Covered Call</option>
-            <option value="Cash-Secured Put">Cash-Secured Put</option>
-            <option value="Stock">Stock</option>
-            <option value="Crypto">Crypto</option>
+        <label>Type:
+          <select name="type">
+            <option value="stock">Stock</option>
+            <option value="option">Option</option>
+            <option value="crypto">Crypto</option>
           </select>
         </label>
         <label>Broker:
@@ -202,15 +184,15 @@
           </select>
         </label>
         <label>Tags (comma-separated): <input type="text" name="tags" /></label>
-        <label>Comments: <input type="text" name="comments" /></label>
         <button type="submit">Save Trade</button>
       </form>
     </section>
   </main>
   <!-- 🧠 App Logic -->
-  <script src="./script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
+
 
 
 
