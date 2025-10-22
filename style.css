@@ -1,3 +1,4 @@
+```css
 :root {
   --red: #E4080A;
   --green: #7DDA58;
@@ -47,7 +48,7 @@ body {
   padding: 0.6em;
   width: 180px;
   position: fixed;
-  height: 100%;
+  height: 100vh;
   color: black;
 }
 .sidebar h1 {
@@ -57,18 +58,22 @@ body {
 .sidebar ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 .sidebar li {
   margin: 0.5em 0;
   font-weight: bold;
   cursor: pointer;
   font-size: 0.9em;
+  padding: 0.5em;
+  border-radius: 3px;
+}
+.sidebar li:hover {
+  background-color: rgba(255, 255, 255, 0.2);
 }
 .sidebar li.active {
   background-color: white;
   color: var(--blue);
-  border-radius: 3px;
-  padding: 0.2em;
 }
 .dashboard {
   margin-left: 200px;
@@ -140,13 +145,6 @@ th.current-price, td.current-price,
 th.pl, td.pl {
   min-width: 120px;
 }
-th.comments, td.comments {
-  min-width: 200px;
-  white-space: normal;
-}
-th.strategy, td.strategy {
-  min-width: 150px;
-}
 .green {
   color: var(--green);
   font-weight: bold;
@@ -185,7 +183,7 @@ button {
 button:hover {
   background-color: #4ac0c7;
 }
-.edit-btn, .delete-btn, .save-btn, .cancel-btn {
+.edit-btn, .delete-btn, .save-btn, .cancel-btn, #saveApiKey, #addAlert {
   margin-right: 0.3em;
   padding: 0.2em 0.5em;
   font-size: 0.8em;
@@ -196,10 +194,10 @@ button:hover {
 .delete-btn:hover {
   background-color: #c50707;
 }
-.save-btn, #saveApiKey {
+.save-btn, #saveApiKey, #addAlert {
   background-color: var(--green);
 }
-.save-btn:hover, #saveApiKey:hover {
+.save-btn:hover, #saveApiKey:hover, #addAlert:hover {
   background-color: #6cc04a;
 }
 #dropZone {
@@ -215,18 +213,18 @@ button:hover {
   background-color: #e0f7ff;
   color: var(--blue);
 }
-.trade-entry form {
+.trade-entry form, #settings form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 0.3em;
   flex-grow: 1;
 }
-.trade-entry label {
+.trade-entry label, #settings label {
   display: flex;
   flex-direction: column;
   font-weight: bold;
 }
-.trade-entry button {
+.trade-entry button, #settings button {
   grid-column: span 2;
   margin-top: 0.3em;
 }
@@ -255,15 +253,44 @@ td[data-broker]::before {
   border-radius: 3px;
   margin-right: 0.3em;
 }
-#loadError, #chartError, #apiKeyStatus.error {
-  background-color: #ffe6e6;
-  padding: 0.5em;
-  border-radius: 3px;
+#apiKeyStatus {
+  font-size: 0.85em;
+  margin-top: 0.3em;
 }
-#apiKeyStatus.success {
-  background-color: #e6ffe6;
+.alerts-controls {
+  margin-bottom: 1em;
+}
+#alertsList {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+#alertsList li {
   padding: 0.5em;
-  border-radius: 3px;
+  border-bottom: 1px solid #ccc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#alertsList li:last-child {
+  border-bottom: none;
+}
+.alert-item {
+  flex: 1;
+}
+.alert-controls {
+  margin-left: 1em;
+}
+.alert-controls button {
+  margin-left: 0.5em;
+  padding: 0.2em 0.4em;
+  font-size: 0.75em;
+}
+#alertForm {
+  margin-bottom: 1em;
+}
+#alertForm input, #alertForm select {
+  margin-right: 0.5em;
+  margin-bottom: 0.5em;
 }
 /* 🌙 Dark Mode */
 body.dark {
@@ -321,17 +348,17 @@ body.dark .delete-btn {
 body.dark .delete-btn:hover {
   background-color: #a50606;
 }
-body.dark .save-btn, body.dark #saveApiKey {
+body.dark .save-btn, body.dark #saveApiKey, body.dark #addAlert {
   background-color: #6cc04a;
 }
-body.dark .save-btn:hover, body.dark #saveApiKey:hover {
+body.dark .save-btn:hover, body.dark #saveApiKey:hover, body.dark #addAlert:hover {
   background-color: #5aa03b;
 }
-body.dark #loadError, body.dark #chartError, body.dark #apiKeyStatus.error {
-  background-color: #3a1c1c;
+body.dark #apiKeyStatus {
+  color: #ff6666;
 }
-body.dark #apiKeyStatus.success {
-  background-color: #1c3a1c;
+body.dark #alertsList li {
+  border-bottom: 1px solid #444;
 }
 /* 🧱 Compact Mode */
 body.compact .dashboard {
@@ -347,7 +374,7 @@ body.compact .filter-controls {
   margin: 0.2em 0;
   gap: 0.2em;
 }
-body.compact .trade-entry form {
+body.compact .trade-entry form, body.compact #settings form {
   gap: 0.2em;
 }
 body.compact .equity-curve canvas,
@@ -402,7 +429,7 @@ body.compact .table-container {
     align-items: center;
     padding: 0.4em;
   }
-  .trade-entry form {
+  .trade-entry form, #settings form {
     grid-template-columns: 1fr;
   }
   section {
@@ -426,6 +453,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+```
 
 
 
