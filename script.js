@@ -1,72 +1,15 @@
 'use strict';
 document.addEventListener('DOMContentLoaded', async () => {
-  // Check for Quirks Mode
-  if (document.compatMode === 'BackCompat') {
-    console.warn('Page is in Quirks Mode. Ensure DOCTYPE is <!DOCTYPE html> and check for HTML errors.');
-  }
-
-  // Show load error if JavaScript runs but page doesn't render
-  const loadError = document.getElementById('loadError');
-  if (loadError) {
-    loadError.style.display = 'block';
-    setTimeout(() => { loadError.style.display = 'none'; }, 5000); // Hide after 5s
-  }
-
-  // ========= API Key Management =========
+  // ========= Load API Key and Cached Prices from localStorage =========
   let API_KEY = localStorage.getItem('apiKey') || '';
-  const apiKeyInput = document.getElementById('apiKeyInput');
-  const saveApiKeyBtn = document.getElementById('saveApiKey');
-  const apiKeyStatus = document.getElementById('apiKeyStatus');
+  let marketPrices = JSON.parse(localStorage.getItem('marketPrices') || '{}');
+  let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
+  let priceUpdateInterval = null;
+  let rateLimitHit = false;
+  const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // Reliable CORS proxy
 
-  async function validateApiKey(key) {
-    try {
-      const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey=${key}`);
-      const data = await response.json();
-      return data['Global Quote'] && data['Global Quote']['05. price'];
-    } catch (error) {
-      console.error('API key validation failed:', error);
-      return false;
-    }
-  }
-
-  if (apiKeyInput && saveApiKeyBtn && apiKeyStatus) {
-    apiKeyInput.value = API_KEY;
-    saveApiKeyBtn.addEventListener('click', async () => {
-      const newKey = apiKeyInput.value.trim();
-      if (!newKey) {
-        apiKeyStatus.textContent = 'Please enter a valid API key.';
-        apiKeyStatus.className = 'error';
-        apiKeyStatus.style.display = 'block';
-        setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
-        return;
-      }
-      try {
-        const isValid = await validateApiKey(newKey);
-        if (isValid) {
-          API_KEY = newKey;
-          localStorage.setItem('apiKey', newKey);
-          apiKeyStatus.textContent = 'API Key saved successfully!';
-          apiKeyStatus.className = 'success';
-          apiKeyStatus.style.display = 'block';
-          setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
-          await renderAll(); // Refresh data with new key
-        } else {
-          apiKeyStatus.textContent = 'Invalid API key. Please check and try again.';
-          apiKeyStatus.className = 'error';
-          apiKeyStatus.style.display = 'block';
-          setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
-        }
-      } catch (error) {
-        console.error('Error saving API key:', error);
-        apiKeyStatus.textContent = 'Failed to save API key due to storage or network error.';
-        apiKeyStatus.className = 'error';
-        apiKeyStatus.style.display = 'block';
-        setTimeout(() => { apiKeyStatus.style.display = 'none'; }, 3000);
-      }
-    });
-  } else {
-    console.error('API key input elements missing:', { apiKeyInput, saveApiKeyBtn, apiKeyStatus });
-  }
+  // ========= Symbol Validation =========
+  const isValidSymbol = (symbol) => /^[A-Z]{1,5}$/.test(symbol);
 
   // ========= 🌙 Theme Toggle =========
   if (localStorage.getItem('theme') === 'dark') {
@@ -93,49 +36,185 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ========= API Key Input Handler =========
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const saveApiKeyBtn = document.getElementById('saveApiKey');
+  const apiKeyStatus = document.getElementById('apiKeyStatus');
+  if (apiKeyInput && saveApiKeyBtn && apiKeyStatus) {
+    apiKeyInput.value = API_KEY;
+    saveApiKeyBtn.addEventListener('click', async () => {
+      API_KEY = apiKeyInput.value.trim();
+      localStorage.setItem('apiKey', API_KEY);
+      rateLimitHit = false;
+      console.log(`[${new Date().toISOString()}] API key saved: ${API_KEY ? 'Set' : 'Empty'}`);
+      apiKeyStatus.textContent = API_KEY ? 'API key saved. Fetching prices...' : 'No API key provided (using Yahoo Finance).';
+      await fetchMarketPrices(trades.map(t => t.symbol));
+      precomputePL();
+      renderAll();
+      restartPriceUpdates();
+    });
+  }
+
   // ========= 📊 Trade Data =========
   let trades = localStorage.getItem('trades') ? JSON.parse(localStorage.getItem('trades')) : [
-    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, strategy: 'Stock', broker: 'Etrade', tags: ['swing'], comments: 'Bullish trend' },
-    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, strategy: 'Stock', broker: 'Schwab', tags: ['long'], comments: 'Long-term hold' },
-    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, strategy: 'Stock', broker: 'Fidelity', tags: ['day'], comments: 'Quick scalp' },
-    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 100, strategy: 'Long Call', broker: 'Robinhood', tags: ['swing'], comments: 'High volatility' }
+    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
+    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] },
+    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
+    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] },
+    { symbol: 'BABA', qty: 5, entry: 100, entryDate: '2025-10-13', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] }
   ];
-  let marketPrices = {};
+
+  // ========= Fetch Yahoo Finance Price =========
+  async function fetchYahooPrice(symbol) {
+    if (!isValidSymbol(symbol)) {
+      console.warn(`[${new Date().toISOString()}] Invalid symbol: ${symbol}`);
+      return null;
+    }
+    try {
+      const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${symbol}`);
+      }
+      const data = await response.json();
+      if (data.chart.error) {
+        throw new Error(data.chart.error.description || 'Yahoo API error');
+      }
+      const price = data.chart.result[0].meta.regularMarketPrice;
+      console.log(`[${new Date().toISOString()}] Yahoo fetched price for ${symbol}: ${price}`);
+      return asNumber(price, 0);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Yahoo error for ${symbol}:`, error.message);
+      return null;
+    }
+  }
+
+  // ========= Fetch Alpha Vantage Price =========
+  async function fetchAlphaVantagePrice(symbol) {
+    if (!API_KEY) return null;
+    if (!isValidSymbol(symbol)) {
+      console.warn(`[${new Date().toISOString()}] Invalid symbol: ${symbol}`);
+      return null;
+    }
+    try {
+      const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} for ${symbol}`);
+      }
+      const data = await response.json();
+      if (data['Information'] && data['Information'].includes('call frequency')) {
+        throw new Error('Rate limit exceeded');
+      }
+      if (data['Information']) {
+        throw new Error('Invalid API key');
+      }
+      const quote = data['Global Quote'];
+      if (quote && quote['05. price']) {
+        const price = asNumber(quote['05. price'], 0);
+        console.log(`[${new Date().toISOString()}] Alpha Vantage fetched price for ${symbol}: ${price}`);
+        return price;
+      }
+      console.warn(`[${new Date().toISOString()}] No price data for ${symbol}:`, data);
+      return null;
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Alpha Vantage error for ${symbol}:`, error.message);
+      if (error.message.includes('Rate limit')) {
+        rateLimitHit = true;
+      }
+      return null;
+    }
+  }
 
   // ========= Fetch Real-Time Prices =========
   async function fetchMarketPrices(symbols) {
-    if (!API_KEY) {
-      console.warn('No API key set. Using entry prices as fallback.');
-      symbols.forEach(symbol => {
-        marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
-      });
-      return;
+    // Check cached prices (valid for 5 minutes)
+    const now = new Date();
+    if (lastPriceFetchTime && (now - lastPriceFetchTime) < 5 * 60 * 1000 && Object.keys(marketPrices).length > 0) {
+      console.log(`[${new Date().toISOString()}] Using cached prices from ${lastPriceFetchTime.toISOString()}`);
+      document.getElementById('ticker-scroll').textContent = 'Using cached market data';
+      if (apiKeyStatus) apiKeyStatus.textContent = 'Using cached prices (recent).';
+      return true;
     }
-    try {
-      const uniqueSymbols = [...new Set(symbols)];
-      const promises = uniqueSymbols.map(async (symbol) => {
+
+    const uniqueSymbols = [...new Set(symbols)];
+    let success = true;
+    let invalidSymbols = [];
+    const batchSize = 5; // Batch for Alpha Vantage rate limits
+    for (let i = 0; i < uniqueSymbols.length; i += batchSize) {
+      const batch = uniqueSymbols.slice(i, i + batchSize);
+      const promises = batch.map(async (symbol) => {
+        if (!isValidSymbol(symbol)) {
+          invalidSymbols.push(symbol);
+          marketPrices[symbol] = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
+          success = false;
+          return;
+        }
+        // Try Yahoo Finance first
+        let price = await fetchYahooPrice(symbol);
+        if (price === null) {
+          // Fallback to Alpha Vantage
+          price = await fetchAlphaVantagePrice(symbol);
+        }
+        if (price === null) {
+          console.warn(`[${new Date().toISOString()}] No price data for ${symbol} from Yahoo or Alpha Vantage`);
+          price = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
+          success = false;
+        }
+        marketPrices[symbol] = price;
+      });
+      try {
+        await Promise.all(promises);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error in fetchMarketPrices batch:`, error.message);
+        success = false;
+      }
+      // Delay for Alpha Vantage rate limits
+      if (i + batchSize < uniqueSymbols.length && API_KEY && !rateLimitHit) {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+    }
+
+    if (success) {
+      localStorage.setItem('marketPrices', JSON.stringify(marketPrices));
+      localStorage.setItem('lastPriceFetchTime', new Date().toISOString());
+      if (apiKeyStatus) apiKeyStatus.textContent = 'Prices updated successfully.';
+    } else {
+      let message = rateLimitHit
+        ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
+        : 'Failed to fetch some prices. Using cached or entry prices.';
+      if (invalidSymbols.length > 0) {
+        message = `Invalid symbols: ${invalidSymbols.join(', ')}. ${message}`;
+      }
+      document.getElementById('ticker-scroll').textContent = message;
+      if (apiKeyStatus) apiKeyStatus.textContent = message;
+    }
+    return success;
+  }
+
+  // ========= Real-Time Price Updates =========
+  function startPriceUpdates() {
+    if (priceUpdateInterval) {
+      clearInterval(priceUpdateInterval);
+    }
+    priceUpdateInterval = setInterval(async () => {
+      if (trades.length > 0) {
         try {
-          const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
-          const data = await response.json();
-          const quote = data['Global Quote'];
-          if (quote && quote['05. price']) {
-            marketPrices[symbol] = asNumber(quote['05. price'], 0);
-          } else {
-            console.warn(`No price data for ${symbol}`);
-            marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
+          const success = await fetchMarketPrices(trades.map(t => t.symbol));
+          if (success) {
+            precomputePL();
+            renderAll();
           }
         } catch (error) {
-          console.error(`Error fetching price for ${symbol}:`, error);
-          marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
+          console.error(`[${new Date().toISOString()}] Price update error:`, error.message);
+          document.getElementById('ticker-scroll').textContent = 'Price update failed. Retrying...';
+          if (apiKeyStatus) apiKeyStatus.textContent = 'Price update failed. Retrying...';
         }
-      });
-      await Promise.all(promises);
-    } catch (error) {
-      console.error('Failed to fetch market prices:', error);
-      symbols.forEach(symbol => {
-        marketPrices[symbol] = trades.find(t => t.symbol === symbol)?.entry || 0;
-      });
-    }
+      }
+    }, 75000); // Update every 75 seconds
+  }
+
+  function restartPriceUpdates() {
+    rateLimitHit = false; // Reset rate limit flag to allow retries
+    startPriceUpdates();
   }
 
   // ========= 💰 Helpers =========
@@ -157,7 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const mkt = marketPrices[trade.symbol] || entry;
     const price = asNumber(trade.exit ?? mkt, entry);
     const qty = asNumber(trade.qty, 0);
-    const multiplier = trade.strategy !== 'Stock' && trade.strategy !== 'Crypto' ? asNumber(trade.multiplier, 100) : 1;
+    const multiplier = trade.type === 'option' ? asNumber(trade.multiplier, 100) : 1;
     return (price - entry) * qty * multiplier;
   };
 
@@ -168,62 +247,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ========= Calculate Trade Performance Analytics =========
-  function calculateAnalytics() {
-    if (trades.length === 0) {
-      return {
-        winRate: 0,
-        avgPL: 0,
-        profitFactor: 0,
-        expectancy: 0
-      };
-    }
-    const totalTrades = trades.length;
-    const winningTrades = trades.filter(trade => (trade.pl || getPL(trade)) > 0).length;
-    const winRate = (winningTrades / totalTrades) * 100;
-    const totalPL = trades.reduce((sum, trade) => sum + (trade.pl || getPL(trade)), 0);
-    const avgPL = totalPL / totalTrades;
-    const grossProfit = trades.reduce((sum, trade) => {
-      const pl = trade.pl || getPL(trade);
-      return pl > 0 ? sum + pl : sum;
-    }, 0);
-    const grossLoss = Math.abs(trades.reduce((sum, trade) => {
-      const pl = trade.pl || getPL(trade);
-      return pl < 0 ? sum + pl : sum;
-    }, 0));
-    const profitFactor = grossLoss === 0 ? (grossProfit === 0 ? 0 : Infinity) : grossProfit / grossLoss;
-    const avgWin = winningTrades === 0 ? 0 : grossProfit / winningTrades;
-    const avgLoss = (totalTrades - winningTrades) === 0 ? 0 : grossLoss / (totalTrades - winningTrades);
-    const expectancy = (winRate / 100) * avgWin - ((1 - winRate / 100) * avgLoss);
-    return {
-      winRate: winRate.toFixed(2),
-      avgPL: avgPL.toFixed(2),
-      profitFactor: profitFactor === Infinity ? '∞' : profitFactor.toFixed(2),
-      expectancy: expectancy.toFixed(2)
-    };
-  }
-
-  // ========= Render Trade Performance Analytics =========
-  function renderAnalytics() {
-    const analytics = calculateAnalytics();
-    const winRateEl = document.getElementById('winRate');
-    const avgPLEl = document.getElementById('avgPL');
-    const profitFactorEl = document.getElementById('profitFactor');
-    const expectancyEl = document.getElementById('expectancy');
-    if (winRateEl) winRateEl.textContent = `${analytics.winRate}%`;
-    if (avgPLEl) avgPLEl.innerHTML = formatPL(analytics.avgPL);
-    if (profitFactorEl) profitFactorEl.textContent = analytics.profitFactor;
-    if (expectancyEl) expectancyEl.innerHTML = formatPL(analytics.expectancy);
-  }
-
   // ========= 📋 Render Trades =========
   function renderTrades(filteredTrades = trades) {
     const tbody = document.getElementById('tradeRows');
     const tradeCount = document.getElementById('tradeCount');
-    if (!tbody || !tradeCount) {
-      console.error('Missing tradeRows or tradeCount elements');
-      return;
-    }
+    if (!tbody || !tradeCount) return;
     tbody.innerHTML = '';
     filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
@@ -237,12 +265,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${trade.entryDate ?? ''}</td>
         <td>${trade.exit == null ? '-' : fmtUSD(asNumber(trade.exit, 0))}</td>
         <td>${trade.exitDate ?? '-'}</td>
-        <td>${trade.multiplier ?? (trade.strategy !== 'Stock' && trade.strategy !== 'Crypto' ? 100 : 1)}</td>
-        <td class="strategy">${trade.strategy ?? 'Stock'}</td>
+        <td>${trade.multiplier ?? (trade.type === 'option' ? 100 : 1)}</td>
+        <td>${trade.type ?? 'stock'}</td>
         <td data-broker="${trade.broker ?? ''}">${trade.broker ?? ''}</td>
         <td class="current-price">${currentPrice}</td>
         <td class="pl">${plHtml}</td>
-        <td class="comments">${trade.comments ?? ''}</td>
         <td>
           <button type="button" class="edit-btn">Edit</button>
           <button type="button" class="delete-btn">Delete</button>
@@ -261,31 +288,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   function enableEditMode(row, index) {
     const trade = trades[index];
     const cells = row.querySelectorAll('td');
-    const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'strategy', 'broker', 'comments'];
+    const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker'];
     fields.forEach((field, i) => {
-      const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : field === 'multiplier' && trade.strategy !== 'Stock' && trade.strategy !== 'Crypto' ? 100 : field === 'strategy' ? 'Stock' : '');
-      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : ''}>`;
-      if (field === 'strategy') {
+      const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : field === 'multiplier' && trade.type === 'option' ? 100 : '');
+      cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : field === 'symbol' ? 'pattern="[A-Z]{1,5}" title="Enter a valid stock symbol (1-5 uppercase letters)"' : ''}>`;
+      if (field === 'type') {
         cells[i].innerHTML = `
           <select>
-            <option value="Long Call" ${value === 'Long Call' ? 'selected' : ''}>Long Call</option>
-            <option value="Long Put" ${value === 'Long Put' ? 'selected' : ''}>Long Put</option>
-            <option value="Short Call" ${value === 'Short Call' ? 'selected' : ''}>Short Call</option>
-            <option value="Short Put" ${value === 'Short Put' ? 'selected' : ''}>Short Put</option>
-            <option value="Bull Call Spread" ${value === 'Bull Call Spread' ? 'selected' : ''}>Bull Call Spread</option>
-            <option value="Bear Put Spread" ${value === 'Bear Put Spread' ? 'selected' : ''}>Bear Put Spread</option>
-            <option value="Bull Put Spread" ${value === 'Bull Put Spread' ? 'selected' : ''}>Bull Put Spread</option>
-            <option value="Bear Call Spread" ${value === 'Bear Call Spread' ? 'selected' : ''}>Bear Call Spread</option>
-            <option value="Straddle" ${value === 'Straddle' ? 'selected' : ''}>Straddle</option>
-            <option value="Strangle" ${value === 'Strangle' ? 'selected' : ''}>Strangle</option>
-            <option value="Iron Condor" ${value === 'Iron Condor' ? 'selected' : ''}>Iron Condor</option>
-            <option value="Iron Butterfly" ${value === 'Iron Butterfly' ? 'selected' : ''}>Iron Butterfly</option>
-            <option value="Butterfly Spread" ${value === 'Butterfly Spread' ? 'selected' : ''}>Butterfly Spread</option>
-            <option value="Calendar Spread" ${value === 'Calendar Spread' ? 'selected' : ''}>Calendar Spread</option>
-            <option value="Covered Call" ${value === 'Covered Call' ? 'selected' : ''}>Covered Call</option>
-            <option value="Cash-Secured Put" ${value === 'Cash-Secured Put' ? 'selected' : ''}>Cash-Secured Put</option>
-            <option value="Stock" ${value === 'Stock' ? 'selected' : ''}>Stock</option>
-            <option value="Crypto" ${value === 'Crypto' ? 'selected' : ''}>Crypto</option>
+            <option value="stock" ${value === 'stock' ? 'selected' : ''}>Stock</option>
+            <option value="option" ${value === 'option' ? 'selected' : ''}>Option</option>
+            <option value="crypto" ${value === 'crypto' ? 'selected' : ''}>Crypto</option>
           </select>
         `;
       }
@@ -315,54 +327,52 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= 💾 Save Edited Trade =========
   async function saveEditedTrade(row, index) {
     const cells = row.querySelectorAll('td');
+    const symbol = String(cells[0].querySelector('input')?.value || '');
+    if (!isValidSymbol(symbol)) {
+      alert(`Invalid symbol: ${symbol}. Use 1-5 uppercase letters (e.g., AAPL).`);
+      return;
+    }
     const updatedTrade = {
-      symbol: String(cells[0].querySelector('input')?.value || ''),
+      symbol,
       qty: asNumber(cells[1].querySelector('input')?.value, 0),
       entry: asNumber(cells[2].querySelector('input')?.value, 0),
       entryDate: cells[3].querySelector('input')?.value || '',
       exit: cells[4].querySelector('input')?.value ? asNumber(cells[4].querySelector('input').value, null) : null,
       exitDate: cells[5].querySelector('input')?.value || null,
       multiplier: asNumber(cells[6].querySelector('input')?.value, 1),
-      strategy: cells[7].querySelector('select')?.value || 'Stock',
+      type: cells[7].querySelector('select')?.value || 'stock',
       broker: cells[8].querySelector('select')?.value || '',
-      comments: cells[9].querySelector('input')?.value || '',
       tags: trades[index].tags || []
     };
     trades[index] = updatedTrade;
-    try {
-      localStorage.setItem('trades', JSON.stringify(trades));
-    } catch (error) {
-      console.error('Error saving trades to localStorage:', error);
-      alert('Failed to save trade due to storage error.');
-      return;
-    }
+    localStorage.setItem('trades', JSON.stringify(trades));
     await fetchMarketPrices([updatedTrade.symbol]);
     precomputePL();
     renderAll();
+    restartPriceUpdates();
   }
 
   // ========= 🗑️ Delete Trade =========
   function deleteTrade(index) {
     if (confirm('Are you sure you want to delete this trade?')) {
       trades.splice(index, 1);
-      try {
-        localStorage.setItem('trades', JSON.stringify(trades));
-      } catch (error) {
-        console.error('Error saving trades to localStorage:', error);
-        alert('Failed to delete trade due to storage error.');
-        return;
-      }
+      localStorage.setItem('trades', JSON.stringify(trades));
       precomputePL();
       renderAll();
+      restartPriceUpdates();
     }
   }
 
   // ========= 📈 Render Charts =========
+  function destroyChartIfAny(canvas) {
+    if (canvas?._chartInstance?.destroy) {
+      canvas._chartInstance.destroy();
+      canvas._chartInstance = null;
+    }
+  }
   function renderCharts() {
-    if (!window.Chart) {
+    if (typeof Chart === 'undefined') {
       console.warn('Chart.js not loaded');
-      const chartError = document.getElementById('chartError');
-      if (chartError) chartError.style.display = 'block';
       return;
     }
     const chartTypeSelect = document.getElementById('chartType');
@@ -478,18 +488,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function destroyChartIfAny(canvas) {
-    if (canvas?._chartInstance?.destroy) {
-      canvas._chartInstance.destroy();
-      canvas._chartInstance = null;
-    }
-  }
-
   // ========= 📰 Render Ticker =========
   function renderTicker() {
     const el = document.getElementById('ticker-scroll');
-    if (!el) {
-      console.error('Missing ticker-scroll element');
+    if (!el) return;
+    if (Object.keys(marketPrices).length === 0) {
+      el.textContent = 'Market data unavailable';
       return;
     }
     const parts = Object.entries(marketPrices).map(([sym, price]) => `${sym}: ${fmtUSD(price)}`);
@@ -500,10 +504,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderPL() {
     const tbody = document.getElementById('plRows');
     const combined = document.getElementById('combinedPL');
-    if (!tbody || !combined) {
-      console.error('Missing plRows or combinedPL elements');
-      return;
-    }
+    if (!tbody || !combined) return;
     const brokers = {};
     trades.forEach(trade => {
       const pl = trade.pl || asNumber(getPL(trade), 0);
@@ -537,14 +538,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= 🧮 Render Portfolio Summary =========
   function renderPortfolio() {
     const container = document.getElementById('portfolio-summary');
-    if (!container) {
-      console.error('Missing portfolio-summary element');
-      return;
-    }
+    if (!container) return;
     const symbols = {};
     let invested = 0;
     let currentValue = 0;
-    const openTrades = trades.filter(trade => trade.exit === null);
+    // Only include open trades (exit is null) for holdings
+    const openTrades = trades.filter(trade => trade.exit == null);
     openTrades.forEach(trade => {
       const sym = trade.symbol ?? '';
       const qty = asNumber(trade.qty, 0);
@@ -563,10 +562,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       .join('');
     container.innerHTML = `
       <p><strong>Total Positions:</strong> ${trades.length}</p>
-      <p><strong>Open Positions:</strong> ${openTrades.length}</p>
       <p><strong>Total Invested (Open):</strong> ${fmtUSD(invested)}</p>
       <p><strong>Current Value (Open):</strong> ${fmtUSD(currentValue)}</p>
-      <p><strong>Unrealized P/L (Open):</strong> ${formatPL(netPL)}</p>
+      <p><strong>Unrealized P/L:</strong> ${formatPL(netPL)}</p>
       <h3>Holdings by Symbol (Open):</h3>
       <ul>${holdings || '<li>No open positions</li>'}</ul>
     `;
@@ -577,19 +575,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (tradeForm) {
     tradeForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!tradeForm.tradeSymbol || !tradeForm.qty || !tradeForm.entry || !tradeForm.date) return;
+      if (!tradeForm.symbol || !tradeForm.qty || !tradeForm.entry || !tradeForm.date) return;
+      const symbol = String(tradeForm.symbol.value.trim());
+      if (!isValidSymbol(symbol)) {
+        alert(`Invalid symbol: ${symbol}. Use 1-5 uppercase letters (e.g., AAPL).`);
+        return;
+      }
       const newTrade = {
-        symbol: String(tradeForm.tradeSymbol.value.trim()),
+        symbol,
         qty: asNumber(tradeForm.qty.value, 0),
         entry: asNumber(tradeForm.entry.value, 0),
         entryDate: tradeForm.date.value || '',
         exit: tradeForm.exit.value ? asNumber(tradeForm.exit.value, null) : null,
         exitDate: tradeForm.exitDate.value || null,
-        multiplier: tradeForm.multiplier.value ? asNumber(tradeForm.multiplier.value, 1) : (tradeForm.strategy.value !== 'Stock' && tradeForm.strategy.value !== 'Crypto' ? 100 : 1),
-        strategy: tradeForm.strategy.value || 'Stock',
+        multiplier: tradeForm.multiplier.value ? asNumber(tradeForm.multiplier.value, 1) : (tradeForm.type.value === 'option' ? 100 : 1),
+        type: tradeForm.type.value || 'stock',
         broker: tradeForm.broker.value || '',
-        tags: tradeForm.tags.value ? tradeForm.tags.value.split(',').map(t => t.trim()) : [],
-        comments: tradeForm.comments.value || ''
+        tags: tradeForm.tags.value ? tradeForm.tags.value.split(',').map(t => t.trim()) : []
       };
       const idx = tradeForm.dataset.editIndex;
       if (idx !== undefined && idx !== null) {
@@ -598,17 +600,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         trades.push(newTrade);
       }
-      try {
-        localStorage.setItem('trades', JSON.stringify(trades));
-      } catch (error) {
-        console.error('Error saving trades to localStorage:', error);
-        alert('Failed to save trade due to storage error.');
-        return;
-      }
       tradeForm.reset();
+      localStorage.setItem('trades', JSON.stringify(trades));
       await fetchMarketPrices([newTrade.symbol]);
       precomputePL();
       renderAll();
+      restartPriceUpdates();
     });
   }
 
@@ -616,7 +613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Strategy,Broker,Tags,Comments\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
       trades.forEach(trade => {
         csv += [
           trade.symbol ?? '',
@@ -625,11 +622,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           trade.entryDate ?? '',
           trade.exit == null ? '' : asNumber(trade.exit, 0),
           trade.exitDate ?? '',
-          trade.multiplier ?? (trade.strategy !== 'Stock' && trade.strategy !== 'Crypto' ? 100 : 1),
-          trade.strategy ?? 'Stock',
+          trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
+          trade.type ?? 'stock',
           trade.broker ?? '',
-          trade.tags?.join(';') ?? '',
-          trade.comments ? `"${trade.comments.replace(/"/g, '""')}"` : ''
+          trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
       downloadCSV(csv, 'trades.csv');
@@ -641,7 +637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (exportFilteredBtn) {
     exportFilteredBtn.addEventListener('click', () => {
       const filtered = filterTrades();
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Strategy,Broker,Tags,Comments\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
       filtered.forEach(trade => {
         csv += [
           trade.symbol ?? '',
@@ -650,11 +646,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           trade.entryDate ?? '',
           trade.exit == null ? '' : asNumber(trade.exit, 0),
           trade.exitDate ?? '',
-          trade.multiplier ?? (trade.strategy !== 'Stock' && trade.strategy !== 'Crypto' ? 100 : 1),
-          trade.strategy ?? 'Stock',
+          trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
+          trade.type ?? 'stock',
           trade.broker ?? '',
-          trade.tags?.join(';') ?? '',
-          trade.comments ? `"${trade.comments.replace(/"/g, '""')}"` : ''
+          trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
       downloadCSV(csv, 'filtered_trades.csv');
@@ -688,45 +683,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function handleCSVFile(file) {
     const reader = new FileReader();
     reader.onload = async (event) => {
-      try {
-        const text = event.target.result;
-        const lines = text.split('\n').slice(1).filter(line => line.trim());
-        const newTrades = lines.map(line => {
-          const parts = line.split(/(?=(?:(?:[^"]*"){2})*[^"]*$),/);
-          const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, strategy, broker, tags, comments] = parts;
-          return {
-            symbol: String(symbol || ''),
-            qty: asNumber(qty, 0),
-            entry: asNumber(entry, 0),
-            entryDate: entryDate || '',
-            exit: exit ? asNumber(exit, null) : null,
-            exitDate: exitDate || null,
-            multiplier: asNumber(multiplier, strategy !== 'Stock' && strategy !== 'Crypto' ? 100 : 1),
-            strategy: strategy || 'Stock',
-            broker: broker || '',
-            tags: tags ? tags.split(';').map(t => t.trim()) : [],
-            comments: comments ? comments.replace(/^"|"$/g, '').replace(/""/g, '"') : ''
-          };
-        });
-        trades.push(...newTrades);
-        try {
-          localStorage.setItem('trades', JSON.stringify(trades));
-        } catch (error) {
-          console.error('Error saving trades to localStorage:', error);
-          alert('Failed to import CSV due to storage error.');
-          return;
+      const text = event.target.result;
+      const lines = text.split('\n').slice(1).filter(line => line.trim());
+      const newTrades = lines.map(line => {
+        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
+        if (!isValidSymbol(symbol)) {
+          console.warn(`[${new Date().toISOString()}] Invalid symbol in CSV: ${symbol}`);
+          return null;
         }
-        await fetchMarketPrices(newTrades.map(t => t.symbol));
-        precomputePL();
-        renderAll();
-      } catch (error) {
-        console.error('Error parsing CSV:', error);
-        alert('Failed to import CSV. Please ensure the file is well-formed.');
-      }
-    };
-    reader.onerror = () => {
-      console.error('Error reading CSV file');
-      alert('Failed to read CSV file.');
+        return {
+          symbol: String(symbol || ''),
+          qty: asNumber(qty, 0),
+          entry: asNumber(entry, 0),
+          entryDate: entryDate || '',
+          exit: exit ? asNumber(exit, null) : null,
+          exitDate: exitDate || null,
+          multiplier: asNumber(multiplier, type === 'option' ? 100 : 1),
+          type: type || 'stock',
+          broker: broker || '',
+          tags: tags ? tags.split(';').map(t => t.trim()) : []
+        };
+      }).filter(trade => trade !== null);
+      trades.push(...newTrades);
+      localStorage.setItem('trades', JSON.stringify(trades));
+      await fetchMarketPrices(newTrades.map(t => t.symbol));
+      precomputePL();
+      renderAll();
+      restartPriceUpdates();
     };
     reader.readAsText(file);
   }
@@ -776,8 +759,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (target) {
           target.style.display = 'block';
           target.classList.add('active-section');
-        } else {
-          console.error(`Navigation target ${targetId} not found`);
         }
       }
     });
@@ -794,79 +775,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     link.remove();
   }
 
-  // ========= 🚀 Render All =========
+  // ========= 🚀 Initialize Dashboard =========
   async function renderAll() {
-    const requiredElements = [
-      'portfolio-summary', 'tradeRows', 'tradeCount', 'plRows', 'combinedPL',
-      'ticker-scroll', 'winRate', 'avgPL', 'profitFactor', 'expectancy',
-      'apiKeyInput', 'saveApiKey', 'apiKeyStatus'
-    ];
-    if (!requiredElements.every(id => document.getElementById(id))) {
-      console.error('Missing required DOM elements:', requiredElements.filter(id => !document.getElementById(id)));
-      return;
-    }
-    try {
-      const symbols = trades.map(t => t.symbol);
-      await fetchMarketPrices(symbols);
-      precomputePL();
-      renderTrades();
-      renderCharts();
-      renderTicker();
-      renderPL();
-      renderPortfolio();
-      renderAnalytics();
-      if (loadError) loadError.style.display = 'none'; // Hide load error on success
-    } catch (error) {
-      console.error('Error rendering dashboard:', error);
-      if (loadError) loadError.style.display = 'block';
-    }
+    const symbols = trades.map(t => t.symbol);
+    await fetchMarketPrices(symbols);
+    precomputePL();
+    renderTrades();
+    renderCharts();
+    renderTicker();
+    renderPL();
+    renderPortfolio();
+  }
+
+  // Initialize and start price updates
+  try {
+    await renderAll();
+    startPriceUpdates();
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Initialization error:`, error.message);
+    document.getElementById('ticker-scroll').textContent = 'Initialization failed. Please refresh.';
+    if (apiKeyStatus) apiKeyStatus.textContent = 'Initialization failed. Please refresh.';
   }
 
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
-    try {
-      // Unregister old Service Workers
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        for (let registration of registrations) {
-          registration.unregister().then(() => console.log('Old Service Worker unregistered'));
+    // Unregister old Service Workers to prevent conflicts
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (let registration of registrations) {
+        registration.unregister().then(() => console.log('Old Service Worker unregistered'));
+      }
+    }).catch(err => console.error('Error unregistering old Service Workers:', err));
+
+    // Register new Service Worker
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => {
+        console.log('Service Worker registered');
+        // Force update if a new version is waiting
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
-      }).catch(err => console.error('Error unregistering old Service Workers:', err));
+      })
+      .catch(err => console.error('Service Worker registration failed:', err));
 
-      // Register new Service Worker
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => {
-          console.log('Service Worker registered');
-          if (reg.waiting) {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
-        })
-        .catch(err => {
-          console.error('Service Worker registration failed:', err);
-          renderAll(); // Continue without Service Worker
-        });
-
-      // Listen for Service Worker updates
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('Service Worker controller changed, reloading...');
-        window.location.reload();
-      });
-    } catch (error) {
-      console.error('Service Worker setup failed:', error);
-      renderAll(); // Proceed without Service Worker
-    }
-  } else {
-    console.warn('Service Worker not supported in this browser');
-    renderAll(); // Proceed without Service Worker
-  }
-
-  // Initialize dashboard
-  try {
-    await renderAll();
-  } catch (error) {
-    console.error('Initialization failed:', error);
-    if (loadError) loadError.style.display = 'block';
+    // Listen for Service Worker updates
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('Service Worker controller changed, reloading...');
+      window.location.reload();
+    });
   }
 });
+
 
 
 
