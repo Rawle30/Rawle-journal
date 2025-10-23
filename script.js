@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= Load API Key and Cached Prices from localStorage =========
   let API_KEY = localStorage.getItem('apiKey') || '';
   let marketPrices = JSON.parse(localStorage.getItem('marketPrices') || '{}');
-  let dividendInfo = JSON.parse(localStorage.getItem('dividendInfo') || '{}');
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
@@ -946,6 +945,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
