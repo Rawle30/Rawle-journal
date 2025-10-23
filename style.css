@@ -289,32 +289,22 @@ td[data-broker]::before {
 }
 .dividend-summary {
   background-color: var(--orange);
-  padding: 1em;
-  border-radius: 6px;
-  margin: 1em 0;
 }
-.dividend-summary h3 {
-  margin: 0 0 0.5em 0;
+.dividend-summary .table-container {
+  max-height: none;
 }
-.dividend-summary p {
-  margin: 0.5em 0;
+.dividend-summary table {
+  min-width: auto;
 }
-.dividend-box {
-  background-color: #f0f0f0;
-  padding: 1em;
-  border: 1px solid #ccc;
-  border-radius: 6px;
+.dividend-summary th {
+  cursor: pointer;
+  user-select: none;
 }
-.dividend-box table {
-  width: 100%;
-  border-collapse: collapse;
+.dividend-summary th.sorted-asc::after {
+  content: ' ▲';
 }
-.dividend-box th, .dividend-box td {
-  padding: 0.5em;
-  border-bottom: 1px solid #ddd;
-}
-.dividend-box th {
-  background-color: #e0e0e0;
+.dividend-summary th.sorted-desc::after {
+  content: ' ▼';
 }
 /* 🌙 Dark Mode */
 body.dark {
@@ -387,12 +377,14 @@ body.dark #alertsList li {
 body.dark .dividend-summary {
   background-color: #333;
 }
-body.dark .dividend-box {
+body.dark .dividend-summary .table-container {
   background-color: #222;
-  border: 1px solid #444;
 }
-body.dark .dividend-box th {
+body.dark .dividend-summary th {
   background-color: #444;
+}
+body.dark .dividend-summary td {
+  border-bottom: 1px solid #444;
 }
 /* 🧱 Compact Mode */
 body.compact .dashboard {
@@ -487,6 +479,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+
 
 
 
