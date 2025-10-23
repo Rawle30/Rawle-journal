@@ -30,7 +30,7 @@ body {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
 }
-#darkToggle {
+#darkToggle, #refreshPrices {
   background-color: var(--blue);
   color: white;
   border: none;
@@ -38,9 +38,14 @@ body {
   border-radius: 3px;
   cursor: pointer;
   font-size: 0.85em;
+  margin-left: 0.3em;
 }
-#darkToggle:hover {
+#darkToggle:hover, #refreshPrices:hover {
   background-color: #4ac0c7;
+}
+#refreshPrices:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
 }
 .sidebar {
   background-color: var(--blue);
@@ -347,11 +352,11 @@ body.dark .ticker {
   background-color: #333;
   color: #fff;
 }
-body.dark #darkToggle {
+body.dark #darkToggle, body.dark #refreshPrices {
   background-color: #444;
   color: #fff;
 }
-body.dark #darkToggle:hover {
+body.dark #darkToggle:hover, body.dark #refreshPrices:hover {
   background-color: #555;
 }
 body.dark #dropZone {
