@@ -91,28 +91,58 @@ document.addEventListener('DOMContentLoaded', async () => {
       return null;
     }
     try {
-      const url = `${CORS_PROXY}https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}&fields=regularMarketPrice,dividendYield,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,dividendDate`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} for ${symbol}`);
+      // Fetch main quote page for current price
+      const quoteUrl = `${CORS_PROXY}https://finance.yahoo.com/quote/${symbol}`;
+      const quoteResponse = await fetch(quoteUrl);
+      if (!quoteResponse.ok) {
+        throw new Error(`HTTP ${quoteResponse.status} for quote page of ${symbol}`);
       }
-      const data = await response.json();
-      if (data.quoteResponse && data.quoteResponse.error) {
-        throw new Error(data.quoteResponse.error.description || 'Yahoo API error');
+      const quoteText = await quoteResponse.text();
+      const parser = new DOMParser();
+      const quoteDoc = parser.parseFromString(quoteText, 'text/html');
+      const priceEl = quoteDoc.querySelector('fin-streamer[data-field="regularMarketPrice"]');
+      const price = priceEl ? asNumber(priceEl.textContent.trim(), 0) : 0;
+
+      // Fetch key-statistics page for dividend info
+      const statsUrl = `${CORS_PROXY}https://finance.yahoo.com/quote/${symbol}/key-statistics`;
+      const statsResponse = await fetch(statsUrl);
+      if (!statsResponse.ok) {
+        throw new Error(`HTTP ${statsResponse.status} for key-statistics page of ${symbol}`);
       }
-      if (!data.quoteResponse || !data.quoteResponse.result || data.quoteResponse.result.length === 0) {
-        throw new Error('No data returned from Yahoo API');
+      const statsText = await statsResponse.text();
+      const statsDoc = parser.parseFromString(statsText, 'text/html');
+      const tds = statsDoc.querySelectorAll('td');
+
+      let trailingDividendRate = 0;
+      let trailingDividendYield = 0;
+      let exDividendDate = null;
+      let dividendDate = null;
+
+      for (let i = 0; i < tds.length - 1; i++) {
+        let label = tds[i].textContent.trim();
+        let value = tds[i + 1].textContent.trim();
+
+        if (label.includes('Trailing Annual Dividend Rate')) {
+          trailingDividendRate = asNumber(value, 0);
+        } else if (label.includes('Trailing Annual Dividend Yield')) {
+          trailingDividendYield = asNumber(value.replace('%', ''), 0) / 100;
+        } else if (label.includes('Ex-Dividend Date')) {
+          exDividendDate = value || null;
+        } else if (label.includes('Dividend Date')) {
+          dividendDate = value || null;
+        }
       }
-      const result = data.quoteResponse.result[0];
-      const price = result.regularMarketPrice ?? 0;
-      const dividendRate = result.trailingAnnualDividendRate ?? 0;
-      const dividendYield = result.trailingAnnualDividendYield ?? 0;
-      const exDividendDate = result.exDividendDate ? new Date(result.exDividendDate * 1000).toISOString().split('T')[0] : null;
-      const dividendDate = result.dividendDate ? new Date(result.dividendDate * 1000).toISOString().split('T')[0] : null;
-      console.log(`[${new Date().toISOString()}] Yahoo fetched data for ${symbol}: price ${price}, dividendRate ${dividendRate}, dividendYield ${dividendYield}, exDividendDate ${exDividendDate}, dividendDate ${dividendDate}`);
-      return { price: asNumber(price, 0), dividendRate, dividendYield, exDividendDate, dividendDate };
+
+      console.log(`[${new Date().toISOString()}] Yahoo scraped data for ${symbol}: price ${price}, dividendRate ${trailingDividendRate}, dividendYield ${trailingDividendYield}, exDividendDate ${exDividendDate}, dividendDate ${dividendDate}`);
+      return {
+        price,
+        dividendRate: trailingDividendRate,
+        dividendYield: trailingDividendYield,
+        exDividendDate,
+        dividendDate
+      };
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Yahoo error for ${symbol}:`, error.message);
+      console.error(`[${new Date().toISOString()}] Yahoo scrape error for ${symbol}:`, error.message);
       return null;
     }
   }
@@ -125,8 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return null;
     }
     try {
-      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`;
-      const response = await fetch(url);
+      const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} for ${symbol}`);
       }
