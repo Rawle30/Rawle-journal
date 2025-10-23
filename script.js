@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
-  const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // Reliable CORS proxy
+  const CORS_PROXY = 'https://corsproxy.io/?'; // Reliable CORS proxy
 
   // ========= Symbol Validation =========
   const isValidSymbol = (symbol) => /^[A-Z]{1,5}$/.test(symbol);
@@ -328,7 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
       }
     });
-    cells[9].innerHTML = `<input type="text" value="${trade.notes ?? ''}">`;
+    cells[11].innerHTML = `<input type="text" value="${trade.notes ?? ''}">`;
     const actionsCell = cells[cells.length - 1];
     actionsCell.innerHTML = `
       <button type="button" class="save-btn">Save</button>
@@ -358,7 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       multiplier: asNumber(cells[6].querySelector('input')?.value, 1),
       type: cells[7].querySelector('select')?.value || 'stock',
       broker: cells[8].querySelector('select')?.value || '',
-      notes: cells[9].querySelector('input')?.value || '',
+      notes: cells[11].querySelector('input')?.value || '',
       tags: trades[index].tags || []
     };
     trades[index] = updatedTrade;
