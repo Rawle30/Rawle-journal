@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
-  const CORS_PROXY = 'https://corsproxy.io/?'; // Updated to reliable CORS proxy
+  const CORS_PROXY = 'https://corsproxy.io/?'; // Reliable CORS proxy
 
   // ========= Symbol Validation =========
   const isValidSymbol = (symbol) => /^[A-Z]{1,5}$/.test(symbol);
@@ -658,6 +658,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     averageYieldEl.innerHTML = count > 0 ? fmtPercent(totalYield / count) : '0%';
     nextExDivEl.innerHTML = nextExDiv || 'N/A';
     nextPayEl.innerHTML = nextPay || 'N/A';
+
+    // Add sorting functionality
+    const headers = document.querySelectorAll('#etfDividendTable th.sortable');
+    headers.forEach(header => {
+      header.addEventListener('click', () => {
+        const sortKey = header.dataset.sort;
+        const isAsc = header.classList.contains('sorted-asc');
+        headers.forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+        header.classList.add(isAsc ? 'sorted-desc' : 'sorted-asc');
+        sortTable('#etfDividendTable', sortKey, !isAsc);
+      });
+    });
+  }
+
+  // ========= Sort Table Function =========
+  function sortTable(tableId, key, asc = true) {
+    const table = document.querySelector(tableId);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => {
+      let aVal = a.querySelector(`td:nth-child(${getEtfColumnIndex(key)}`)?.textContent.trim() || '';
+      let bVal = b.querySelector(`td:nth-child(${getEtfColumnIndex(key)}`)?.textContent.trim() || '';
+      if (key === 'gain' || key === 'dividendRate') {
+        aVal = parseFloat(aVal.replace('$', '')) || 0;
+        bVal = parseFloat(bVal.replace('$', '')) || 0;
+      } else if (key === 'dividendYield') {
+        aVal = parseFloat(aVal.replace('%', '')) || 0;
+        bVal = parseFloat(bVal.replace('%', '')) || 0;
+      } else if (key === 'exDividendDate' || key === 'dividendDate') {
+        aVal = aVal === '-' ? 0 : new Date(aVal).getTime();
+        bVal = bVal === '-' ? 0 : new Date(bVal).getTime();
+      } else if (key === 'qty') {
+        aVal = parseFloat(aVal) || 0;
+        bVal = parseFloat(bVal) || 0;
+      }
+      return asc ? aVal - bVal : bVal - aVal;
+    });
+    rows.forEach(row => tbody.appendChild(row));
+  }
+
+  // ========= Get Column Index for Sorting (ETF Table) =========
+  function getEtfColumnIndex(key) {
+    const headers = {
+      symbol: 1,
+      dividendRate: 2,
+      dividendDate: 3,
+      gain: 4,
+      dividendYield: 5,
+      qty: 6,
+      exDividendDate: 7
+    };
+    return headers[key];
   }
 
   // ========= 📝 Form Submission Handler =========
