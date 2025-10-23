@@ -3,10 +3,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= Load API Key and Cached Prices from localStorage =========
   let API_KEY = localStorage.getItem('apiKey') || '';
   let marketPrices = JSON.parse(localStorage.getItem('marketPrices') || '{}');
+  let dividendInfo = JSON.parse(localStorage.getItem('dividendInfo') || '{}');
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
-  const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // Reliable CORS proxy for Yahoo Finance
+  const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // Reliable CORS proxy
 
   // ========= Symbol Validation =========
   const isValidSymbol = (symbol) => /^[A-Z]{1,5}$/.test(symbol);
@@ -64,24 +65,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     { symbol: 'BABA', qty: 5, entry: 100, entryDate: '2025-10-13', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] }
   ];
 
-  // ========= Fetch Yahoo Finance Price =========
-  async function fetchYahooPrice(symbol) {
+  // ========= Fetch Yahoo Finance Data =========
+  async function fetchYahooData(symbol) {
     if (!isValidSymbol(symbol)) {
       console.warn(`[${new Date().toISOString()}] Invalid symbol: ${symbol}`);
       return null;
     }
     try {
-      const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`);
+      const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}&fields=regularMarketPrice,dividendYield,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,dividendDate`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} for ${symbol}`);
       }
       const data = await response.json();
-      if (data.chart.error) {
-        throw new Error(data.chart.error.description || 'Yahoo API error');
+      if (data.quoteResponse.error) {
+        throw new Error(data.quoteResponse.error.description || 'Yahoo API error');
       }
-      const price = data.chart.result[0].meta.regularMarketPrice;
-      console.log(`[${new Date().toISOString()}] Yahoo fetched price for ${symbol}: ${price}`);
-      return asNumber(price, 0);
+      const result = data.quoteResponse.result[0];
+      const price = result.regularMarketPrice;
+      const dividendRate = result.trailingAnnualDividendRate || 0;
+      const dividendYield = result.trailingAnnualDividendYield || 0;
+      const exDividendDate = result.exDividendDate ? new Date(result.exDividendDate * 1000).toISOString().split('T')[0] : null;
+      const dividendDate = result.dividendDate ? new Date(result.dividendDate * 1000).toISOString().split('T')[0] : null;
+      console.log(`[${new Date().toISOString()}] Yahoo fetched data for ${symbol}: price ${price}, dividendRate ${dividendRate}, dividendYield ${dividendYield}, exDividendDate ${exDividendDate}, dividendDate ${dividendDate}`);
+      return { price: asNumber(price, 0), dividendRate, dividendYield, exDividendDate, dividendDate };
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Yahoo error for ${symbol}:`, error.message);
       return null;
@@ -111,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (quote && quote['05. price']) {
         const price = asNumber(quote['05. price'], 0);
         console.log(`[${new Date().toISOString()}] Alpha Vantage fetched price for ${symbol}: ${price}`);
-        return price;
+        return { price };
       }
       console.warn(`[${new Date().toISOString()}] No price data for ${symbol}:`, data);
       return null;
@@ -124,7 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ========= Fetch Real-Time Prices =========
+  // ========= Fetch Real-Time Prices and Dividend Info =========
   async function fetchMarketPrices(symbols) {
     // Check cached prices (valid for 5 minutes)
     const now = new Date();
@@ -148,18 +154,27 @@ document.addEventListener('DOMContentLoaded', async () => {
           success = false;
           return;
         }
-        // Try Yahoo Finance first
-        let price = await fetchYahooPrice(symbol);
-        if (price === null) {
-          // Fallback to Alpha Vantage
-          price = await fetchAlphaVantagePrice(symbol);
+        // Try Yahoo Finance first for price and dividend info
+        let data = await fetchYahooData(symbol);
+        if (data === null) {
+          // Fallback to Alpha Vantage for price only
+          data = await fetchAlphaVantagePrice(symbol);
         }
-        if (price === null) {
-          console.warn(`[${new Date().toISOString()}] No price data for ${symbol} from Yahoo or Alpha Vantage`);
-          price = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
+        if (data === null) {
+          console.warn(`[${new Date().toISOString()}] No data for ${symbol} from Yahoo or Alpha Vantage`);
+          marketPrices[symbol] = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
           success = false;
+        } else {
+          marketPrices[symbol] = data.price;
+          if (data.dividendRate !== undefined) {
+            dividendInfo[symbol] = {
+              dividendRate: data.dividendRate,
+              dividendYield: data.dividendYield,
+              exDividendDate: data.exDividendDate,
+              dividendDate: data.dividendDate
+            };
+          }
         }
-        marketPrices[symbol] = price;
       });
       await Promise.all(promises);
       // Delay for Alpha Vantage rate limits
@@ -170,12 +185,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (success) {
       localStorage.setItem('marketPrices', JSON.stringify(marketPrices));
+      localStorage.setItem('dividendInfo', JSON.stringify(dividendInfo));
       localStorage.setItem('lastPriceFetchTime', new Date().toISOString());
-      if (apiKeyStatus) apiKeyStatus.textContent = 'Prices updated successfully.';
+      if (apiKeyStatus) apiKeyStatus.textContent = 'Prices and dividends updated successfully.';
     } else {
       let message = rateLimitHit
         ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
-        : 'Failed to fetch some prices. Using cached or entry prices.';
+        : 'Failed to fetch some prices/dividends. Using cached or entry prices.';
       if (invalidSymbols.length > 0) {
         message = `Invalid symbols: ${invalidSymbols.join(', ')}. ${message}`;
       }
@@ -216,6 +232,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fmtUSD = (val) => {
     const n = asNumber(val);
     return `$${n.toFixed(2)}`;
+  };
+  const fmtPercent = (val) => {
+    const n = asNumber(val);
+    return `${(n * 100).toFixed(2)}%`;
   };
   const formatPL = (value) => {
     const n = asNumber(value);
@@ -776,17 +796,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTicker();
     renderPL();
     renderPortfolio();
+    renderDividendSummary();
   }
 
   // Initialize and start price updates
-  try {
-    await renderAll();
-    startPriceUpdates();
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] Initialization error:`, error.message);
-    document.getElementById('ticker-scroll').textContent = 'Initialization failed. Please refresh.';
-    if (apiKeyStatus) apiKeyStatus.textContent = 'Initialization failed. Please refresh.';
-  }
+  await renderAll();
+  startPriceUpdates();
 
   // ========= 🌐 Service Worker Registration =========
   if ('serviceWorker' in navigator) {
@@ -815,6 +830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
