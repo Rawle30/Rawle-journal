@@ -281,6 +281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td data-broker="${trade.broker ?? ''}">${trade.broker ?? ''}</td>
         <td class="current-price">${currentPrice}</td>
         <td class="pl">${plHtml}</td>
+        <td>${trade.notes ?? '-'}</td>
         <td>
           <button type="button" class="edit-btn">Edit</button>
           <button type="button" class="delete-btn">Delete</button>
@@ -299,7 +300,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function enableEditMode(row, index) {
     const trade = trades[index];
     const cells = row.querySelectorAll('td');
-    const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker'];
+    const fields = ['symbol', 'qty', 'entry', 'entryDate', 'exit', 'exitDate', 'multiplier', 'type', 'broker', 'notes'];
     fields.forEach((field, i) => {
       const value = trade[field] ?? (field === 'exit' || field === 'exitDate' ? '' : field === 'multiplier' && trade.type === 'option' ? 100 : '');
       cells[i].innerHTML = `<input type="${field === 'entryDate' || field === 'exitDate' ? 'date' : field === 'qty' || field === 'multiplier' || field === 'entry' || field === 'exit' ? 'number' : 'text'}" value="${value}" ${field === 'entry' || field === 'exit' ? 'step="0.01"' : field === 'symbol' ? 'pattern="[A-Z]{1,5}" title="Enter a valid stock symbol (1-5 uppercase letters)"' : ''}>`;
@@ -353,6 +354,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       multiplier: asNumber(cells[6].querySelector('input')?.value, 1),
       type: cells[7].querySelector('select')?.value || 'stock',
       broker: cells[8].querySelector('select')?.value || '',
+      notes: cells[9].querySelector('input')?.value || '',
       tags: trades[index].tags || []
     };
     trades[index] = updatedTrade;
@@ -676,7 +678,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Notes,Tags\n';
       trades.forEach(trade => {
         csv += [
           trade.symbol ?? '',
@@ -688,6 +690,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
+          trade.notes ?? '',
           trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
@@ -700,7 +703,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (exportFilteredBtn) {
     exportFilteredBtn.addEventListener('click', () => {
       const filtered = filterTrades();
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Notes,Tags\n';
       filtered.forEach(trade => {
         csv += [
           trade.symbol ?? '',
@@ -712,6 +715,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
+          trade.notes ?? '',
           trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
@@ -749,7 +753,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const text = event.target.result;
       const lines = text.split('\n').slice(1).filter(line => line.trim());
       const newTrades = lines.map(line => {
-        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
+        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, notes, tags] = line.split(',');
         if (!isValidSymbol(symbol)) {
           console.warn(`[${new Date().toISOString()}] Invalid symbol in CSV: ${symbol}`);
           return null;
@@ -764,6 +768,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           multiplier: asNumber(multiplier, type === 'option' ? 100 : 1),
           type: type || 'stock',
           broker: broker || '',
+          notes: notes || '',
           tags: tags ? tags.split(';').map(t => t.trim()) : []
         };
       }).filter(trade => trade !== null);
@@ -882,6 +887,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
