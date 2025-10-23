@@ -606,10 +606,95 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${exDividendDate}</td>
         <td>${dividendDate}</td>
         <td>${formatPL(gain)}</td>
+        <td><button class="view-history" data-symbol="${sym}">View History</button></td>
       `;
       tbody.appendChild(row);
     });
     totalGainEl.innerHTML = formatPL(totalDividendGain);
+
+    // Add event listeners for view history buttons
+    document.querySelectorAll('.view-history').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const symbol = btn.dataset.symbol;
+        const history = await fetchDividendHistory(symbol);
+        showDividendHistory(symbol, history);
+      });
+    });
+
+    // Add sorting functionality
+    const headers = document.querySelectorAll('#dividendTable th.sortable');
+    headers.forEach(header => {
+      header.addEventListener('click', () => {
+        const sortKey = header.dataset.sort;
+        const isAsc = header.classList.contains('sorted-asc');
+        headers.forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+        header.classList.add(isAsc ? 'sorted-desc' : 'sorted-asc');
+        sortTable('#dividendTable', sortKey, !isAsc);
+      });
+    });
+  }
+
+  // ========= Show Dividend History Modal =========
+  function showDividendHistory(symbol, history) {
+    const modal = document.getElementById('dividendHistoryModal');
+    const modalSymbol = document.getElementById('modalSymbol');
+    const historyRows = document.getElementById('historyRows');
+    modalSymbol.textContent = `${symbol} Dividend History`;
+    historyRows.innerHTML = '';
+    history.forEach(div => {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td>${div.date}</td><td>${fmtUSD(div.amount)}</td>`;
+      historyRows.appendChild(row);
+    });
+    modal.style.display = 'block';
+  }
+
+  // Modal close functionality
+  const modal = document.getElementById('dividendHistoryModal');
+  const closeBtn = modal.querySelector('.close');
+  closeBtn.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  window.addEventListener('click', (event) => {
+    if (event.target === modal) {
+      modal.style.display = 'none';
+    }
+  });
+
+  // ========= Sort Table Function =========
+  function sortTable(tableId, key, asc = true) {
+    const table = document.querySelector(tableId);
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => {
+      let aVal = a.querySelector(`td:nth-child(${getColumnIndex(key)}`)?.textContent.trim() || '';
+      let bVal = b.querySelector(`td:nth-child(${getColumnIndex(key)}`)?.textContent.trim() || '';
+      if (key === 'gain' || key === 'dividendRate') {
+        aVal = parseFloat(aVal.replace('$', '')) || 0;
+        bVal = parseFloat(bVal.replace('$', '')) || 0;
+      } else if (key === 'dividendYield') {
+        aVal = parseFloat(aVal.replace('%', '')) || 0;
+        bVal = parseFloat(bVal.replace('%', '')) || 0;
+      } else if (key === 'exDividendDate' || key === 'payDate') {
+        aVal = aVal === '-' ? 0 : new Date(aVal).getTime();
+        bVal = bVal === '-' ? 0 : new Date(bVal).getTime();
+      }
+      return asc ? aVal - bVal : bVal - aVal;
+    });
+    rows.forEach(row => tbody.appendChild(row));
+  }
+
+  // ========= Get Column Index for Sorting =========
+  function getColumnIndex(key) {
+    const headers = {
+      symbol: 1,
+      dividendRate: 2,
+      dividendYield: 3,
+      exDividendDate: 4,
+      payDate: 5,
+      gain: 6
+    };
+    return headers[key];
   }
 
   // ========= 📝 Form Submission Handler =========
@@ -861,6 +946,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
