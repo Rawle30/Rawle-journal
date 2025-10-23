@@ -287,23 +287,27 @@ td[data-broker]::before {
   margin-right: 0.5em;
   margin-bottom: 0.5em;
 }
-.dividend-summary {
-  background-color: var(--orange);
+.etf-dividend-box {
+  background-color: #f0f0f0;
+  padding: 1em;
+  border: 1px solid #ccc;
+  border-radius: 6px;
 }
-.dividend-summary .table-container {
-  max-height: none;
+.etf-dividend-box table {
+  width: 100%;
+  border-collapse: collapse;
 }
-.dividend-summary table {
-  min-width: auto;
+.etf-dividend-box th, .etf-dividend-box td {
+  padding: 0.5em;
+  border-bottom: 1px solid #ddd;
 }
-.dividend-summary th {
-  cursor: pointer;
-  user-select: none;
+.etf-dividend-box th {
+  background-color: #e0e0e0;
 }
-.dividend-summary th.sorted-asc::after {
+.etf-dividend-box th.sorted-asc::after {
   content: ' ▲';
 }
-.dividend-summary th.sorted-desc::after {
+.etf-dividend-box th.sorted-desc::after {
   content: ' ▼';
 }
 /* 🌙 Dark Mode */
@@ -374,16 +378,14 @@ body.dark #apiKeyStatus {
 body.dark #alertsList li {
   border-bottom: 1px solid #444;
 }
-body.dark .dividend-summary {
-  background-color: #333;
-}
-body.dark .dividend-summary .table-container {
+body.dark .etf-dividend-box {
   background-color: #222;
+  border: 1px solid #444;
 }
-body.dark .dividend-summary th {
+body.dark .etf-dividend-box th {
   background-color: #444;
 }
-body.dark .dividend-summary td {
+body.dark .etf-dividend-box td {
   border-bottom: 1px solid #444;
 }
 /* 🧱 Compact Mode */
@@ -479,6 +481,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+
 
 
 
