@@ -561,6 +561,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
   }
 
+  // ========= Render ETF Dividend Summary =========
+  function renderEtfDividendSummary() {
+    const tbody = document.getElementById('etfDividendRows');
+    const totalGainEl = document.getElementById('totalDividendGain');
+    if (!tbody || !totalGainEl) return;
+    tbody.innerHTML = '';
+    let totalDividendGain = 0;
+    const etfTrades = trades.filter(trade => trade.type === 'etf' && trade.exit == null);
+    const dividendData = [];
+    etfTrades.forEach(trade => {
+      const sym = trade.symbol;
+      const qty = asNumber(trade.qty, 0);
+      const dividendRate = dividendInfo[sym]?.dividendRate || 0;
+      const dividendYield = dividendInfo[sym]?.dividendYield || 0;
+      const exDividendDate = dividendInfo[sym]?.exDividendDate || '-';
+      const payDate = dividendInfo[sym]?.dividendDate || '-';
+      const gain = dividendRate * qty;
+      totalDividendGain += gain;
+      dividendData.push({
+        symbol: sym,
+        dividendRate: dividendRate,
+        dividendYield: dividendYield,
+        exDividendDate: exDividendDate,
+        payDate: payDate,
+        gain: gain
+      });
+    });
+    totalGainEl.innerHTML = formatPL(totalDividendGain);
+
+    // Render table rows
+    dividendData.forEach(data => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${data.symbol}</td>
+        <td>${fmtUSD(data.dividendRate)}</td>
+        <td>${fmtPercent(data.dividendYield)}</td>
+        <td>${data.exDividendDate}</td>
+        <td>${data.payDate}</td>
+        <td>${formatPL(data.gain)}</td>
+      `;
+      tbody.appendChild(row);
+    });
+
+    // Add sorting functionality
+    const table = document.getElementById('etfDividendTable');
+    const headers = table.querySelectorAll('th.sortable');
+    headers.forEach(header => {
+      header.addEventListener('click', () => {
+        const sortKey = header.dataset.sort;
+        const isAsc = header.classList.contains('sorted-asc');
+        headers.forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+        header.classList.add(isAsc ? 'sorted-desc' : 'sorted-asc');
+        sortTable(table, sortKey, !isAsc);
+      });
+    });
+  }
+
+  // ========= Sort Table Function =========
+  function sortTable(table, key, asc = true) {
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.sort((a, b) => {
+      let aVal = a.querySelector(`td:nth-child(${getColumnIndex(key)}`)?.textContent.trim() || '';
+      let bVal = b.querySelector(`td:nth-child(${getColumnIndex(key)}`)?.textContent.trim() || '';
+      if (key === 'gain' || key === 'dividendRate' || key === 'dividendYield') {
+        aVal = parseFloat(aVal.replace(/[$%]/g, '')) || 0;
+        bVal = parseFloat(bVal.replace(/[$%]/g, '')) || 0;
+      } else if (key === 'exDividendDate' || key === 'payDate') {
+        aVal = aVal === '-' ? 0 : new Date(aVal).getTime();
+        bVal = bVal === '-' ? 0 : new Date(bVal).getTime();
+      }
+      return asc ? aVal - bVal : bVal - aVal;
+    });
+    rows.forEach(row => tbody.appendChild(row));
+  }
+
+  // ========= Get Column Index for Sorting =========
+  function getColumnIndex(key) {
+    const headers = {
+      symbol: 1,
+      dividendRate: 2,
+      dividendYield: 3,
+      exDividendDate: 4,
+      payDate: 5,
+      gain: 6
+    };
+    return headers[key];
+  }
+
   // ========= 📝 Form Submission Handler =========
   const tradeForm = document.getElementById('tradeForm');
   if (tradeForm) {
@@ -810,6 +899,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
