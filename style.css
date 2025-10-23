@@ -287,49 +287,41 @@ td[data-broker]::before {
   margin-right: 0.5em;
   margin-bottom: 0.5em;
 }
-.etf-dividend-summary {
+.dividend-summary {
   background-color: var(--orange);
-  padding: 0.5em;
+  padding: 1em;
   border-radius: 6px;
-  font-size: 0.9em;
-  min-height: 200px;
-  max-height: 50vh;
-  overflow-y: auto;
-  scroll-behavior: smooth;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
+  margin: 1em 0;
 }
-.etf-dividend-summary h2 {
-  margin: 0 0 0.3em 0;
-  font-size: 1.1em;
+.dividend-summary h3 {
+  margin: 0 0 0.5em 0;
 }
-.etf-dividend-box {
+.dividend-summary p {
+  margin: 0.5em 0;
+}
+.dividend-box {
   background-color: #f0f0f0;
   padding: 1em;
   border: 1px solid #ccc;
   border-radius: 6px;
 }
-.etf-dividend-box table {
+.dividend-box table {
   width: 100%;
   border-collapse: collapse;
 }
-.etf-dividend-box th, .etf-dividend-box td {
+.dividend-box th, .dividend-box td {
   padding: 0.5em;
   border-bottom: 1px solid #ddd;
 }
-.etf-dividend-box th {
+.dividend-box th {
   background-color: #e0e0e0;
+}
+.dividend-box th.sortable {
   cursor: pointer;
 }
-.etf-dividend-box th.sorted-asc::after {
-  content: ' ▲';
-}
-.etf-dividend-box th.sorted-desc::after {
-  content: ' ▼';
-}
-.etf-dividend-box p {
-  margin-bottom: 0.5em;
+.dividend-box th.sortable::after {
+  content: ' ↕';
+  font-size: 0.8em;
 }
 /* 🌙 Dark Mode */
 body.dark {
@@ -399,17 +391,17 @@ body.dark #apiKeyStatus {
 body.dark #alertsList li {
   border-bottom: 1px solid #444;
 }
-body.dark .etf-dividend-summary {
+body.dark .dividend-summary {
   background-color: #333;
 }
-body.dark .etf-dividend-box {
+body.dark .dividend-box {
   background-color: #222;
   border: 1px solid #444;
 }
-body.dark .etf-dividend-box th {
+body.dark .dividend-box th {
   background-color: #444;
 }
-body.dark .etf-dividend-box td {
+body.dark .dividend-box td {
   border-bottom: 1px solid #444;
 }
 /* 🧱 Compact Mode */
@@ -505,6 +497,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+
 
 
 
