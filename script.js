@@ -77,8 +77,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw new Error(`HTTP ${response.status} for ${symbol}`);
       }
       const data = await response.json();
-      if (data.quoteResponse.error) {
+      if (data.quoteResponse && data.quoteResponse.error) {
         throw new Error(data.quoteResponse.error.description || 'Yahoo API error');
+      }
+      if (!data.quoteResponse || !data.quoteResponse.result || !data.quoteResponse.result[0]) {
+        throw new Error('Invalid response structure from Yahoo API');
       }
       const result = data.quoteResponse.result[0];
       const price = result.regularMarketPrice;
@@ -325,6 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
       }
     });
+    cells[9].innerHTML = `<input type="text" value="${trade.notes ?? ''}">`;
     const actionsCell = cells[cells.length - 1];
     actionsCell.innerHTML = `
       <button type="button" class="save-btn">Save</button>
@@ -354,6 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       multiplier: asNumber(cells[6].querySelector('input')?.value, 1),
       type: cells[7].querySelector('select')?.value || 'stock',
       broker: cells[8].querySelector('select')?.value || '',
+      notes: cells[9].querySelector('input')?.value || '',
       tags: trades[index].tags || []
     };
     trades[index] = updatedTrade;
@@ -655,6 +660,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         multiplier: tradeForm.multiplier.value ? asNumber(tradeForm.multiplier.value, 1) : (tradeForm.type.value === 'option' ? 100 : 1),
         type: tradeForm.type.value || 'stock',
         broker: tradeForm.broker.value || '',
+        notes: tradeForm.notes.value || '',
         tags: tradeForm.tags.value ? tradeForm.tags.value.split(',').map(t => t.trim()) : []
       };
       const idx = tradeForm.dataset.editIndex;
@@ -677,7 +683,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const exportBtn = document.getElementById('exportCSV');
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Notes,Tags\n';
       trades.forEach(trade => {
         csv += [
           trade.symbol ?? '',
@@ -689,6 +695,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
+          trade.notes ?? '',
           trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
@@ -701,7 +708,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (exportFilteredBtn) {
     exportFilteredBtn.addEventListener('click', () => {
       const filtered = filterTrades();
-      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Tags\n';
+      let csv = 'Symbol,Qty,Entry,Entry Date,Exit,Exit Date,Multiplier,Type,Broker,Notes,Tags\n';
       filtered.forEach(trade => {
         csv += [
           trade.symbol ?? '',
@@ -713,6 +720,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           trade.multiplier ?? (trade.type === 'option' ? 100 : 1),
           trade.type ?? 'stock',
           trade.broker ?? '',
+          trade.notes ?? '',
           trade.tags?.join(';') ?? ''
         ].join(',') + '\n';
       });
@@ -750,7 +758,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const text = event.target.result;
       const lines = text.split('\n').slice(1).filter(line => line.trim());
       const newTrades = lines.map(line => {
-        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, tags] = line.split(',');
+        const [symbol, qty, entry, entryDate, exit, exitDate, multiplier, type, broker, notes, tags] = line.split(',');
         if (!isValidSymbol(symbol)) {
           console.warn(`[${new Date().toISOString()}] Invalid symbol in CSV: ${symbol}`);
           return null;
@@ -765,6 +773,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           multiplier: asNumber(multiplier, type === 'option' ? 100 : 1),
           type: type || 'stock',
           broker: broker || '',
+          notes: notes || '',
           tags: tags ? tags.split(';').map(t => t.trim()) : []
         };
       }).filter(trade => trade !== null);
@@ -883,6 +892,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
