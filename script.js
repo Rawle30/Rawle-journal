@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const dividendUrl = `https://finnhub.io/api/v1/stock/dividend2?symbol=${symbol}&from=${fromStr}&to=${toStr}&token=${token}`;
       const dividendResponse = await fetch(dividendUrl);
       if (!dividendResponse.ok) throw new Error(`Finnhub dividend HTTP ${dividendResponse.status}`);
-      const dividendData = dividendResponse.json();
+      const dividendData = await dividendResponse.json();
       let dividendRate = 0;
       dividendData.data.forEach(d => dividendRate += d.amount);
       const dividendYield = price > 0 ? dividendRate / price : 0;
@@ -1104,6 +1104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     maxDrawdownEl.textContent = `-${maxDD.toFixed(2)}%`;
   }
 });
+
 
 
 
