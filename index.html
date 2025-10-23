@@ -152,22 +152,23 @@
         </table>
       </div>
     </section>
-    <!-- ETF Dividend Box -->
-    <section class="etf-dividend-summary">
-      <h2>ETF Dividend Summary</h2>
-      <div class="etf-dividend-box">
-        <p>Total Dividend Gain: <span id="totalDividendGain"></span></p>
-        <table id="etfDividendTable">
+    <!-- Dividend Summary Box -->
+    <section class="dividend-summary">
+      <h2>Dividend Summary</h2>
+      <div class="dividend-box">
+        <p>Total Dividend Gain (Open): <span id="totalDividendGain"></span></p>
+        <table id="dividendTable">
           <thead>
             <tr>
-              <th>Symbol</th>
-              <th>Dividend</th>
-              <th>Dividend Pay Date</th>
-              <th>Gain</th>
-              <th>Dividend Yield</th>
+              <th class="sortable" data-sort="symbol">Symbol</th>
+              <th class="sortable" data-sort="dividendRate">Dividend Rate</th>
+              <th class="sortable" data-sort="dividendYield">Dividend Yield</th>
+              <th class="sortable" data-sort="exDividendDate">Ex-Div Date</th>
+              <th class="sortable" data-sort="payDate">Pay Date</th>
+              <th class="sortable" data-sort="gain">Gain</th>
             </tr>
           </thead>
-          <tbody id="etfDividendRows"></tbody>
+          <tbody id="dividendRows"></tbody>
         </table>
       </div>
     </section>
@@ -208,6 +209,7 @@
   <script src="script.js"></script>
 </body>
 </html>
+
 
 
 
