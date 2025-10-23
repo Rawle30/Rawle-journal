@@ -88,11 +88,11 @@
     </section>
     <!-- Alerts -->
     <section id="alerts" class="switchable" style="display:none;">
-      <h2>Alerts</h2>
-      <div class="alerts-controls">
-        <button id="addAlert">Add Alert</button>
-      </div>
-      <div id="alertsList"></div>
+      <h2>Recent Alerts</h2>
+      <ul id="alertsList">
+        <li>AAPL | $150 | Above</li>
+        <li>MSFT | $200 | Below</li>
+      </ul>
     </section>
     <!-- Settings -->
     <section id="settings" class="switchable" style="display:none;">
@@ -107,10 +107,6 @@
         <button id="saveApiKey">Save API Key</button>
       </label>
       <p id="apiKeyStatus" style="color: var(--red);"></p>
-      <label>
-        <input type="checkbox" id="pushNotificationsToggle" />
-        Enable Push Notifications
-      </label>
     </section>
     <!-- Equity Curve Chart -->
     <section class="equity-curve">
@@ -156,6 +152,26 @@
         </table>
       </div>
     </section>
+    <!-- Dividend Summary Box -->
+    <section class="dividend-summary">
+      <h2>Dividend Summary</h2>
+      <div class="dividend-box">
+        <p>Total Dividend Gain (Open): <span id="totalDividendGain"></span></p>
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Dividend Rate</th>
+              <th>Dividend Yield</th>
+              <th>Ex-Div Date</th>
+              <th>Pay Date</th>
+              <th>Gain</th>
+            </tr>
+          </thead>
+          <tbody id="dividendRows"></tbody>
+        </table>
+      </div>
+    </section>
     <!-- Add / Edit Trade Form -->
     <section class="trade-entry">
       <h2>Add / Edit Trade</h2>
@@ -192,6 +208,7 @@
   <script src="script.js"></script>
 </body>
 </html>
+
 
 
 
