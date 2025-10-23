@@ -352,11 +352,11 @@ body.dark .ticker {
   background-color: #333;
   color: #fff;
 }
-body.dark #darkToggle, body.dark #refreshPrices {
+body.dark #darkToggle {
   background-color: #444;
   color: #fff;
 }
-body.dark #darkToggle:hover, body.dark #refreshPrices:hover {
+body.dark #darkToggle:hover {
   background-color: #555;
 }
 body.dark #dropZone {
@@ -511,6 +511,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+
 
 
 
