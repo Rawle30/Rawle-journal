@@ -160,12 +160,12 @@
         <table id="dividendTable">
           <thead>
             <tr>
-              <th>Symbol</th>
-              <th>Dividend Rate</th>
-              <th>Dividend Yield</th>
-              <th>Ex-Div Date</th>
-              <th>Pay Date</th>
-              <th>Gain</th>
+              <th class="sortable" data-sort="symbol">Symbol</th>
+              <th class="sortable" data-sort="dividendRate">Dividend Rate</th>
+              <th class="sortable" data-sort="dividendYield">Dividend Yield</th>
+              <th class="sortable" data-sort="exDividendDate">Ex-Div Date</th>
+              <th class="sortable" data-sort="payDate">Pay Date</th>
+              <th class="sortable" data-sort="gain">Gain</th>
             </tr>
           </thead>
           <tbody id="dividendRows"></tbody>
@@ -188,6 +188,7 @@
             <option value="stock">Stock</option>
             <option value="option">Option</option>
             <option value="crypto">Crypto</option>
+            <option value="etf">ETF</option>
           </select>
         </label>
         <label>Broker:
@@ -208,6 +209,7 @@
   <script src="script.js"></script>
 </body>
 </html>
+
 
 
 
