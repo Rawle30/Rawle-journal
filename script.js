@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= Load API Key and Cached Prices from localStorage =========
   let API_KEY = localStorage.getItem('apiKey') || '';
   let marketPrices = JSON.parse(localStorage.getItem('marketPrices') || '{}');
+  let dividendInfo = JSON.parse(localStorage.getItem('dividendInfo') || '{}');
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
@@ -64,24 +65,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     { symbol: 'BABA', qty: 5, entry: 100, entryDate: '2025-10-13', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] }
   ];
 
-  // ========= Fetch Yahoo Finance Price =========
-  async function fetchYahooPrice(symbol) {
+  // ========= Fetch Yahoo Finance Data =========
+  async function fetchYahooData(symbol) {
     if (!isValidSymbol(symbol)) {
       console.warn(`[${new Date().toISOString()}] Invalid symbol: ${symbol}`);
       return null;
     }
     try {
-      const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1m&range=1d`);
+      const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}&fields=regularMarketPrice,dividendYield,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,dividendDate`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} for ${symbol}`);
       }
       const data = await response.json();
-      if (data.chart.error) {
-        throw new Error(data.chart.error.description || 'Yahoo API error');
+      if (data.quoteResponse.error) {
+        throw new Error(data.quoteResponse.error.description || 'Yahoo API error');
       }
-      const price = data.chart.result[0].meta.regularMarketPrice;
-      console.log(`[${new Date().toISOString()}] Yahoo fetched price for ${symbol}: ${price}`);
-      return asNumber(price, 0);
+      const result = data.quoteResponse.result[0];
+      const price = result.regularMarketPrice;
+      const dividendRate = result.trailingAnnualDividendRate || 0;
+      const dividendYield = result.trailingAnnualDividendYield || 0;
+      const exDividendDate = result.exDividendDate ? new Date(result.exDividendDate * 1000).toISOString().split('T')[0] : null;
+      const dividendDate = result.dividendDate ? new Date(result.dividendDate * 1000).toISOString().split('T')[0] : null;
+      console.log(`[${new Date().toISOString()}] Yahoo fetched data for ${symbol}: price ${price}, dividendRate ${dividendRate}, dividendYield ${dividendYield}, exDividendDate ${exDividendDate}, dividendDate ${dividendDate}`);
+      return { price: asNumber(price, 0), dividendRate, dividendYield, exDividendDate, dividendDate };
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Yahoo error for ${symbol}:`, error.message);
       return null;
@@ -111,7 +117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (quote && quote['05. price']) {
         const price = asNumber(quote['05. price'], 0);
         console.log(`[${new Date().toISOString()}] Alpha Vantage fetched price for ${symbol}: ${price}`);
-        return price;
+        return { price };
       }
       console.warn(`[${new Date().toISOString()}] No price data for ${symbol}:`, data);
       return null;
@@ -124,7 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ========= Fetch Real-Time Prices =========
+  // ========= Fetch Real-Time Prices and Dividend Info =========
   async function fetchMarketPrices(symbols) {
     // Check cached prices (valid for 5 minutes)
     const now = new Date();
@@ -148,18 +154,27 @@ document.addEventListener('DOMContentLoaded', async () => {
           success = false;
           return;
         }
-        // Try Yahoo Finance first
-        let price = await fetchYahooPrice(symbol);
-        if (price === null) {
-          // Fallback to Alpha Vantage
-          price = await fetchAlphaVantagePrice(symbol);
+        // Try Yahoo Finance first for price and dividend info
+        let data = await fetchYahooData(symbol);
+        if (data === null) {
+          // Fallback to Alpha Vantage for price only
+          data = await fetchAlphaVantagePrice(symbol);
         }
-        if (price === null) {
-          console.warn(`[${new Date().toISOString()}] No price data for ${symbol} from Yahoo or Alpha Vantage`);
-          price = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
+        if (data === null) {
+          console.warn(`[${new Date().toISOString()}] No data for ${symbol} from Yahoo or Alpha Vantage`);
+          marketPrices[symbol] = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
           success = false;
+        } else {
+          marketPrices[symbol] = data.price;
+          if (data.dividendRate !== undefined) {
+            dividendInfo[symbol] = {
+              dividendRate: data.dividendRate,
+              dividendYield: data.dividendYield,
+              exDividendDate: data.exDividendDate,
+              dividendDate: data.dividendDate
+            };
+          }
         }
-        marketPrices[symbol] = price;
       });
       await Promise.all(promises);
       // Delay for Alpha Vantage rate limits
@@ -170,12 +185,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (success) {
       localStorage.setItem('marketPrices', JSON.stringify(marketPrices));
+      localStorage.setItem('dividendInfo', JSON.stringify(dividendInfo));
       localStorage.setItem('lastPriceFetchTime', new Date().toISOString());
-      if (apiKeyStatus) apiKeyStatus.textContent = 'Prices updated successfully.';
+      if (apiKeyStatus) apiKeyStatus.textContent = 'Prices and dividends updated successfully.';
     } else {
       let message = rateLimitHit
         ? 'Alpha Vantage rate limit exceeded. Using Yahoo or cached prices.'
-        : 'Failed to fetch some prices. Using cached or entry prices.';
+        : 'Failed to fetch some prices/dividends. Using cached or entry prices.';
       if (invalidSymbols.length > 0) {
         message = `Invalid symbols: ${invalidSymbols.join(', ')}. ${message}`;
       }
@@ -216,6 +232,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fmtUSD = (val) => {
     const n = asNumber(val);
     return `$${n.toFixed(2)}`;
+  };
+  const fmtPercent = (val) => {
+    const n = asNumber(val);
+    return `${(n * 100).toFixed(2)}%`;
   };
   const formatPL = (value) => {
     const n = asNumber(value);
@@ -561,93 +581,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
   }
 
-  // ========= Render ETF Dividend Summary =========
-  function renderEtfDividendSummary() {
-    const tbody = document.getElementById('etfDividendRows');
+  // ========= Render Dividend Summary =========
+  function renderDividendSummary() {
+    const tbody = document.getElementById('dividendRows');
     const totalGainEl = document.getElementById('totalDividendGain');
     if (!tbody || !totalGainEl) return;
     tbody.innerHTML = '';
     let totalDividendGain = 0;
-    const etfTrades = trades.filter(trade => trade.type === 'etf' && trade.exit == null);
-    const dividendData = [];
-    etfTrades.forEach(trade => {
+    const dividendTrades = trades.filter(trade => (trade.type === 'stock' || trade.type === 'etf') && trade.exit == null);
+    dividendTrades.forEach(trade => {
       const sym = trade.symbol;
       const qty = asNumber(trade.qty, 0);
       const dividendRate = dividendInfo[sym]?.dividendRate || 0;
       const dividendYield = dividendInfo[sym]?.dividendYield || 0;
       const exDividendDate = dividendInfo[sym]?.exDividendDate || '-';
-      const payDate = dividendInfo[sym]?.dividendDate || '-';
+      const dividendDate = dividendInfo[sym]?.dividendDate || '-';
       const gain = dividendRate * qty;
       totalDividendGain += gain;
-      dividendData.push({
-        symbol: sym,
-        dividendRate: dividendRate,
-        dividendYield: dividendYield,
-        exDividendDate: exDividendDate,
-        payDate: payDate,
-        gain: gain
-      });
-    });
-    totalGainEl.innerHTML = formatPL(totalDividendGain);
-
-    // Render table rows
-    dividendData.forEach(data => {
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td>${data.symbol}</td>
-        <td>${fmtUSD(data.dividendRate)}</td>
-        <td>${fmtPercent(data.dividendYield)}</td>
-        <td>${data.exDividendDate}</td>
-        <td>${data.payDate}</td>
-        <td>${formatPL(data.gain)}</td>
+        <td>${sym}</td>
+        <td>${fmtUSD(dividendRate)}</td>
+        <td>${fmtPercent(dividendYield)}</td>
+        <td>${exDividendDate}</td>
+        <td>${dividendDate}</td>
+        <td>${formatPL(gain)}</td>
       `;
       tbody.appendChild(row);
     });
-
-    // Add sorting functionality
-    const table = document.getElementById('etfDividendTable');
-    const headers = table.querySelectorAll('th.sortable');
-    headers.forEach(header => {
-      header.addEventListener('click', () => {
-        const sortKey = header.dataset.sort;
-        const isAsc = header.classList.contains('sorted-asc');
-        headers.forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
-        header.classList.add(isAsc ? 'sorted-desc' : 'sorted-asc');
-        sortTable(table, sortKey, !isAsc);
-      });
-    });
-  }
-
-  // ========= Sort Table Function =========
-  function sortTable(table, key, asc = true) {
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    rows.sort((a, b) => {
-      let aVal = a.querySelector(`td:nth-child(${getColumnIndex(key)}`)?.textContent.trim() || '';
-      let bVal = b.querySelector(`td:nth-child(${getColumnIndex(key)}`)?.textContent.trim() || '';
-      if (key === 'gain' || key === 'dividendRate' || key === 'dividendYield') {
-        aVal = parseFloat(aVal.replace(/[$%]/g, '')) || 0;
-        bVal = parseFloat(bVal.replace(/[$%]/g, '')) || 0;
-      } else if (key === 'exDividendDate' || key === 'payDate') {
-        aVal = aVal === '-' ? 0 : new Date(aVal).getTime();
-        bVal = bVal === '-' ? 0 : new Date(bVal).getTime();
-      }
-      return asc ? aVal - bVal : bVal - aVal;
-    });
-    rows.forEach(row => tbody.appendChild(row));
-  }
-
-  // ========= Get Column Index for Sorting =========
-  function getColumnIndex(key) {
-    const headers = {
-      symbol: 1,
-      dividendRate: 2,
-      dividendYield: 3,
-      exDividendDate: 4,
-      payDate: 5,
-      gain: 6
-    };
-    return headers[key];
+    totalGainEl.innerHTML = formatPL(totalDividendGain);
   }
 
   // ========= 📝 Form Submission Handler =========
@@ -865,7 +827,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTicker();
     renderPL();
     renderPortfolio();
-    renderEtfDividendSummary();
+    renderDividendSummary();
   }
 
   // Initialize and start price updates
@@ -899,6 +861,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
