@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -185,13 +186,13 @@
         <table id="etfDividendTable">
           <thead>
             <tr>
-              <th>Symbol</th>
-              <th>Dividend</th>
-              <th>Dividend Pay Date</th>
-              <th>Gain</th>
-              <th>Dividend Yield</th>
-              <th>Qty</th>
-              <th>Ex-Div Date</th>
+              <th class="sortable" data-sort="symbol">Symbol</th>
+              <th class="sortable" data-sort="dividendRate">Dividend</th>
+              <th class="sortable" data-sort="dividendDate">Dividend Pay Date</th>
+              <th class="sortable" data-sort="gain">Gain</th>
+              <th class="sortable" data-sort="dividendYield">Dividend Yield</th>
+              <th class="sortable" data-sort="qty">Qty</th>
+              <th class="sortable" data-sort="exDividendDate">Ex-Div Date</th>
             </tr>
           </thead>
           <tbody id="etfDividendRows"></tbody>
@@ -236,6 +237,7 @@
   <script src="script.js"></script>
 </body>
 </html>
+```
 
 
 
