@@ -217,10 +217,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const n = asNumber(val);
     return `$${n.toFixed(2)}`;
   };
-  const fmtPercent = (val) => {
-    const n = asNumber(val);
-    return `${(n * 100).toFixed(2)}%`;
-  };
   const formatPL = (value) => {
     const n = asNumber(value);
     const color = n >= 0 ? 'green' : 'red';
@@ -780,6 +776,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTicker();
     renderPL();
     renderPortfolio();
+    renderEtfDividendSummary();
   }
 
   // Initialize and start price updates
@@ -813,6 +810,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
+
 
 
 
