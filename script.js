@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
-  const CORS_PROXY = 'https://corsproxy.io/?'; // Reliable CORS proxy
+  const CORS_PROXY = 'https://corsproxy.io/?'; // Updated to reliable CORS proxy
 
   // ========= Symbol Validation =========
   const isValidSymbol = (symbol) => /^[A-Z]{1,5}$/.test(symbol);
@@ -56,13 +56,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ========= Manual Price Refresh Button =========
+  const refreshBtn = document.getElementById('refreshPrices');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Refreshing...';
+      localStorage.removeItem('lastPriceFetchTime'); // Force fresh fetch
+      const symbols = trades.map(t => t.symbol);
+      const success = await fetchMarketPrices(symbols);
+      precomputePL();
+      renderAll();
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = 'Refresh Prices';
+      if (apiKeyStatus) {
+        apiKeyStatus.textContent = success ? 'Prices refreshed successfully.' : 'Some prices failed to refresh.';
+      }
+    });
+  }
+
   // ========= 📊 Trade Data =========
   let trades = localStorage.getItem('trades') ? JSON.parse(localStorage.getItem('trades')) : [
-    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'] },
-    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] },
-    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'] },
-    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'] },
-    { symbol: 'BABA', qty: 5, entry: 100, entryDate: '2025-10-13', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'] }
+    { symbol: 'AAPL', qty: 10, entry: 150, entryDate: '2025-10-12', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Etrade', tags: ['swing'], notes: '' },
+    { symbol: 'GOOG', qty: 5, entry: 2800, entryDate: '2025-10-11', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'], notes: '' },
+    { symbol: 'MSFT', qty: 12, entry: 300, entryDate: '2025-10-10', exit: 310, exitDate: '2025-10-15', multiplier: 1, type: 'stock', broker: 'Fidelity', tags: ['day'], notes: '' },
+    { symbol: 'TSLA', qty: 10, entry: 1000, entryDate: '2025-10-14', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Robinhood', tags: ['swing'], notes: '' },
+    { symbol: 'BABA', qty: 5, entry: 100, entryDate: '2025-10-13', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'], notes: '' }
   ];
 
   // ========= Fetch Yahoo Finance Data =========
@@ -72,7 +91,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return null;
     }
     try {
-      const response = await fetch(`${CORS_PROXY}https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}&fields=regularMarketPrice,dividendYield,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,dividendDate`);
+      const url = `${CORS_PROXY}https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}&fields=regularMarketPrice,dividendYield,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,dividendDate`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} for ${symbol}`);
       }
@@ -80,13 +100,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (data.quoteResponse && data.quoteResponse.error) {
         throw new Error(data.quoteResponse.error.description || 'Yahoo API error');
       }
-      if (!data.quoteResponse || !data.quoteResponse.result || !data.quoteResponse.result[0]) {
-        throw new Error('Invalid response structure from Yahoo API');
+      if (!data.quoteResponse || !data.quoteResponse.result || data.quoteResponse.result.length === 0) {
+        throw new Error('No data returned from Yahoo API');
       }
       const result = data.quoteResponse.result[0];
-      const price = result.regularMarketPrice;
-      const dividendRate = result.trailingAnnualDividendRate || 0;
-      const dividendYield = result.trailingAnnualDividendYield || 0;
+      const price = result.regularMarketPrice ?? 0;
+      const dividendRate = result.trailingAnnualDividendRate ?? 0;
+      const dividendYield = result.trailingAnnualDividendYield ?? 0;
       const exDividendDate = result.exDividendDate ? new Date(result.exDividendDate * 1000).toISOString().split('T')[0] : null;
       const dividendDate = result.dividendDate ? new Date(result.dividendDate * 1000).toISOString().split('T')[0] : null;
       console.log(`[${new Date().toISOString()}] Yahoo fetched data for ${symbol}: price ${price}, dividendRate ${dividendRate}, dividendYield ${dividendYield}, exDividendDate ${exDividendDate}, dividendDate ${dividendDate}`);
@@ -105,7 +125,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return null;
     }
     try {
-      const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
+      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} for ${symbol}`);
       }
@@ -134,10 +155,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ========= Fetch Real-Time Prices and Dividend Info =========
-  async function fetchMarketPrices(symbols) {
-    // Check cached prices (valid for 5 minutes)
+  async function fetchMarketPrices(symbols, force = false) {
+    // Optional force refresh ignores cache
     const now = new Date();
-    if (lastPriceFetchTime && (now - lastPriceFetchTime) < 5 * 60 * 1000 && Object.keys(marketPrices).length > 0) {
+    if (!force && lastPriceFetchTime && (now - lastPriceFetchTime) < 5 * 60 * 1000 && Object.keys(marketPrices).length > 0) {
       console.log(`[${new Date().toISOString()}] Using cached prices from ${lastPriceFetchTime.toISOString()}`);
       document.getElementById('ticker-scroll').textContent = 'Using cached market data';
       if (apiKeyStatus) apiKeyStatus.textContent = 'Using cached prices (recent).';
@@ -313,6 +334,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <option value="stock" ${value === 'stock' ? 'selected' : ''}>Stock</option>
             <option value="option" ${value === 'option' ? 'selected' : ''}>Option</option>
             <option value="crypto" ${value === 'crypto' ? 'selected' : ''}>Crypto</option>
+            <option value="etf" ${value === 'etf' ? 'selected' : ''}>ETF</option>
           </select>
         `;
       }
@@ -328,6 +350,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
       }
     });
+    // Notes (index 11)
     cells[11].innerHTML = `<input type="text" value="${trade.notes ?? ''}">`;
     const actionsCell = cells[cells.length - 1];
     actionsCell.innerHTML = `
@@ -635,8 +658,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     averageYieldEl.innerHTML = count > 0 ? fmtPercent(totalYield / count) : '0%';
     nextExDivEl.innerHTML = nextExDiv || 'N/A';
     nextPayEl.innerHTML = nextPay || 'N/A';
-
-    // Add sorting functionality if needed
   }
 
   // ========= 📝 Form Submission Handler =========
@@ -892,7 +913,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 });
-
 
 
 
