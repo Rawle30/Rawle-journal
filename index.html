@@ -23,6 +23,7 @@
         <li data-target="portfolio" class="switchable">Portfolio</li>
         <li data-target="trades-table" class="switchable">Trades</li>
         <li data-target="alerts" class="switchable">Alerts</li>
+        <li data-target="greeks-calculator" class="switchable">Greeks Calculator</li>
         <li data-target="settings" class="switchable">Settings</li>
       </ul>
     </nav>
@@ -94,6 +95,25 @@
         <li>MSFT | $200 | Below</li>
       </ul>
     </section>
+    <!-- Greeks Calculator -->
+    <section id="greeks-calculator" class="switchable" style="display:none;">
+      <h2>Options Greeks Calculator</h2>
+      <form id="greeksForm">
+        <label>Spot Price (S): <input type="number" id="spotPrice" step="0.01" required /></label>
+        <label>Strike Price (K): <input type="number" id="strikePrice" step="0.01" required /></label>
+        <label>Time to Expiration (T, in years): <input type="number" id="timeToExpiration" step="0.01" required /></label>
+        <label>Risk-Free Rate (r): <input type="number" id="riskFreeRate" step="0.01" required /></label>
+        <label>Volatility (σ): <input type="number" id="volatility" step="0.01" required /></label>
+        <label>Option Type:
+          <select id="optionType">
+            <option value="call">Call</option>
+            <option value="put">Put</option>
+          </select>
+        </label>
+        <button type="submit">Calculate</button>
+      </form>
+      <div id="greeksResult"></div>
+    </section>
     <!-- Settings -->
     <section id="settings" class="switchable" style="display:none;">
       <h2>Settings</h2>
@@ -152,23 +172,27 @@
         </table>
       </div>
     </section>
-    <!-- Dividend Summary Box -->
-    <section class="dividend-summary">
-      <h2>Dividend Summary</h2>
-      <div class="dividend-box">
-        <p>Total Dividend Gain (Open): <span id="totalDividendGain"></span></p>
-        <table id="dividendTable">
+    <!-- ETF Dividend Summary Box -->
+    <section class="etf-dividend-summary">
+      <h2>ETF Dividend Summary</h2>
+      <div class="etf-dividend-box">
+        <p>Total Dividend Gain: <span id="totalEtfDividendGain"></span></p>
+        <p>Average Dividend Yield: <span id="averageEtfDividendYield"></span></p>
+        <p>Next Ex-Div Date: <span id="nextExDivDate"></span></p>
+        <p>Next Pay Date: <span id="nextPayDate"></span></p>
+        <table id="etfDividendTable">
           <thead>
             <tr>
-              <th class="sortable" data-sort="symbol">Symbol</th>
-              <th class="sortable" data-sort="dividendRate">Dividend Rate</th>
-              <th class="sortable" data-sort="dividendYield">Dividend Yield</th>
-              <th class="sortable" data-sort="exDividendDate">Ex-Div Date</th>
-              <th class="sortable" data-sort="payDate">Pay Date</th>
-              <th class="sortable" data-sort="gain">Gain</th>
+              <th>Symbol</th>
+              <th>Dividend</th>
+              <th>Dividend Pay Date</th>
+              <th>Gain</th>
+              <th>Dividend Yield</th>
+              <th>Qty</th>
+              <th>Ex-Div Date</th>
             </tr>
           </thead>
-          <tbody id="dividendRows"></tbody>
+          <tbody id="etfDividendRows"></tbody>
         </table>
       </div>
     </section>
@@ -209,6 +233,7 @@
   <script src="script.js"></script>
 </body>
 </html>
+
 
 
 
