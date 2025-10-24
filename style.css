@@ -239,7 +239,8 @@ canvas {
 }
 .equity-curve canvas,
 .symbol-distribution canvas,
-.broker-distribution canvas {
+.broker-distribution canvas,
+.etf-dividend-chart canvas {
   width: 100%;
   height: 25vh;
   max-height: 150px;
@@ -511,6 +512,7 @@ body.compact .table-container {
     max-height: 35vh;
   }
 }
+
 
 
 
