@@ -680,9 +680,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     let nextExDiv = null;
     let nextPay = null;
     const etfTrades = trades.filter(trade => trade.type === 'etf' && trade.exit == null);
+    const groupedEtfs = {};
     etfTrades.forEach(trade => {
       const sym = trade.symbol;
-      const qty = asNumber(trade.qty, 0);
+      if (!groupedEtfs[sym]) {
+        groupedEtfs[sym] = { qty: 0 };
+      }
+      groupedEtfs[sym].qty += asNumber(trade.qty, 0);
+    });
+    Object.entries(groupedEtfs).forEach(([sym, { qty }]) => {
       const dividendRate = dividendInfo[sym]?.dividendRate || 0;
       const dividendYield = dividendInfo[sym]?.dividendYield || 0;
       const exDividendDate = dividendInfo[sym]?.exDividendDate || '-';
