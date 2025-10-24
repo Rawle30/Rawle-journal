@@ -1,19 +1,18 @@
 'use strict';
 
 /**
- * Trading Journal — robust pricing + dividends + solid sidebar nav
- * - Event-delegated sidebar navigation (fallback to 'portfolio')
- * - Yahoo JSON quote endpoint fallback (via CORS proxy)
+ * Trading Journal — robust pricing + dividends + sidebar nav
+ * - Sidebar navigation via event delegation (default to 'portfolio')
+ * - Yahoo JSON quote via Jina Reader CORS bypass (no custom proxy needed)
  * - fetchMarketPrices never caches entry fallbacks; only caches real quotes
- * - Cache TTL respected only when every symbol has a valid cached quote
+ * - Cache TTL used only when every symbol has a valid cached quote
  * - Ticker renders only valid prices; tables show entry when live missing
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
   // ========= Config / Keys =========
   let API_KEY = (localStorage.getItem('apiKey') || 'FTDRTP0955507PPC').trim(); // Alpha Vantage
-  const FINNHUB_TOKEN = 'd3f79jpr01qolknc02sgd3f79jpr01qolknc02t0';             // Demo-ish token string
-  const CORS_PROXY = 'https://proxy.corsfix.com/?';                               // Proxy for Yahoo
+  const FINNHUB_TOKEN = 'd3f79jpr01qolknc02sgd3f79jpr01qolknc02t0';             // Example token
   const PRICE_CACHE_TTL_MS = 5 * 60 * 1000;                                       // 5 minutes
 
   // ========= Local state / caches =========
@@ -47,6 +46,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formatPL = (value) => `<span class="${asNumber(value) >= 0 ? 'green' : 'red'}">${fmtUSD(asNumber(value))}</span>`;
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+  // --- Jina Reader CORS helpers (Option A) ---
+  function stripProtocol(u) { return String(u).replace(/^https?:\/\//, ''); }
+  async function fetchTextBypassCORS(url) {
+    // Jina Reader returns content with permissive CORS
+    const readerURL = 'https://r.jina.ai/http://' + stripProtocol(url);
+    const res = await fetch(readerURL, { method: 'GET' });
+    if (!res.ok) throw new Error(`BypassCORS HTTP ${res.status} for ${url}`);
+    return await res.text();
+  }
+
   // ========= 🌙 Theme / Compact =========
   if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
   $('#darkToggle')?.addEventListener('click', () => {
@@ -66,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ========= ✅ NAV: event-delegated sidebar switching (fallback to portfolio) =========
+  // ========= ✅ NAV: event-delegated sidebar switching (default to 'portfolio') =========
   (function setupSidebarNav() {
     const list = document.querySelector('.sidebar nav ul');
     if (!list) return;
@@ -176,47 +185,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Yahoo JSON endpoint (preferred), with fallbacks to embedded JSON and DOM
+  // Yahoo via JSON endpoint (Jina Reader CORS), then quote page (embedded JSON), then DOM
   async function fetchYahooData(symbol) {
     if (!isValidSymbol(symbol)) return null;
     try {
-      // JSON quote endpoint
-      const jsonUrl = `${CORS_PROXY}https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
-      const r = await fetch(jsonUrl);
-      if (!r.ok) throw new Error(`Yahoo JSON HTTP ${r.status}`);
-      const j = await r.json();
-      const result = j?.quoteResponse?.result?.[0];
+      // 1) JSON quote endpoint
+      const jsonTxt = await fetchTextBypassCORS(
+        `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`
+      );
+      const json = JSON.parse(jsonTxt);
+      const result = json?.quoteResponse?.result?.[0];
       const price = asNumber(result?.regularMarketPrice, 0);
-      if (isValidPrice(price)) {
+      if (price > 0) {
         return { price, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
       }
 
-      // Page fallback (embedded JSON then DOM)
-      const pageUrl = `${CORS_PROXY}https://finance.yahoo.com/quote/${symbol}`;
-      const res = await fetch(pageUrl);
-      if (!res.ok) throw new Error(`Yahoo page HTTP ${res.status}`);
-      const html = await res.text();
-
-      // Embedded JSON (root.App.main)
+      // 2) Fallback: quote page → embedded JSON
+      const html = await fetchTextBypassCORS(`https://finance.yahoo.com/quote/${symbol}`);
       const jsonMatch = html.match(/root\.App\.main\s*=\s*(\{.*?\});\s*<\/script>/s);
       if (jsonMatch) {
         try {
           const root = JSON.parse(jsonMatch[1]);
-          const priceRaw =
+          const pRaw =
             root?.context?.dispatcher?.stores?.QuoteSummaryStore?.price?.regularMarketPrice?.raw ??
             root?.context?.dispatcher?.stores?.StreamDataStore?.quoteData?.[symbol]?.regularMarketPrice?.raw ??
             null;
-          const p2 = asNumber(priceRaw, 0);
-          if (isValidPrice(p2)) return { price: p2, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
-        } catch { /* ignore */ }
+          const p2 = asNumber(pRaw, 0);
+          if (p2 > 0) {
+            return { price: p2, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
+          }
+        } catch { /* ignore and fall through */ }
       }
 
-      // DOM fallback
+      // 3) Fallback: DOM parse of the page
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       const streamer = doc.querySelector('fin-streamer[data-field="regularMarketPrice"], fin-streamer[data-test="qsp-price"]');
       const p3 = streamer ? asNumber((streamer.textContent || '').trim(), 0) : 0;
-      if (isValidPrice(p3)) return { price: p3, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
+      if (p3 > 0) {
+        return { price: p3, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
+      }
 
       throw new Error('Yahoo price not found or invalid');
     } catch (e) {
@@ -282,11 +290,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           return;
         }
 
-        // Try sources: Finnhub → Yahoo JSON → Alpha → Yahoo (again, page path)
+        // Try sources: Finnhub → Yahoo (JSON via Jina) → Alpha → Yahoo (again)
         let data = await fetchFinnhubData(symbol);
         if (data === null) data = await fetchYahooData(symbol);
         if (data === null) data = await fetchAlphaVantageData(symbol);
-        if (data === null) data = await fetchYahooData(symbol); // last attempt
+        if (data === null) data = await fetchYahooData(symbol); // final attempt
 
         // If we still don't have a valid live price, DO NOT cache entry fallback
         const live = asNumber(data?.price, 0);
@@ -973,6 +981,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await init();
   startPriceUpdates();
 });
+
 
 
 
