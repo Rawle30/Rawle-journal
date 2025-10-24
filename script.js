@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     { symbol: 'BABA', qty: 5, entry: 100, entryDate: '2025-10-13', exit: null, exitDate: null, multiplier: 1, type: 'stock', broker: 'Schwab', tags: ['long'], notes: '' }
   ];
 
-  // ========= Fetch Finnhub Data =========
+  // ========= Fetch Finnhub Data (fixed dividend shape handling) =========
   async function fetchFinnhubData(symbol) {
     try {
       const token = FINNHUB_TOKEN;
@@ -93,24 +93,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       const quoteResponse = await fetch(quoteUrl);
       if (!quoteResponse.ok) throw new Error(`Finnhub quote HTTP ${quoteResponse.status}`);
       const quoteData = await quoteResponse.json();
-      const price = quoteData.c || 0;
+      const price = asNumber(quoteData?.c, 0);
 
       const from = new Date();
       from.setFullYear(from.getFullYear() - 1);
       const fromStr = from.toISOString().split('T')[0];
       const toStr = new Date().toISOString().split('T')[0];
+
       const dividendUrl = `https://finnhub.io/api/v1/stock/dividend2?symbol=${symbol}&from=${fromStr}&to=${toStr}&token=${token}`;
       const dividendResponse = await fetch(dividendUrl);
       if (!dividendResponse.ok) throw new Error(`Finnhub dividend HTTP ${dividendResponse.status}`);
-      const dividendData = await dividendResponse.json();
-      let dividendRate = 0;
-      dividendData.data.forEach(d => dividendRate += d.amount);
-      const dividendYield = price > 0 ? dividendRate / price : 0;
-      const lastDiv = dividendData.data[0] || {};
-      const exDividendDate = lastDiv.exDate || null;
-      const dividendDate = lastDiv.payDate || null;
+      const rawDiv = await dividendResponse.json();
 
-      console.log(`[${new Date().toISOString()}] Finnhub fetched data for ${symbol}: price ${price}, dividendRate ${dividendRate}, dividendYield ${dividendYield}, exDividendDate ${exDividendDate}, dividendDate ${dividendDate}`);
+      // Accept array or { data: [...] }
+      const divArray = Array.isArray(rawDiv) ? rawDiv : Array.isArray(rawDiv?.data) ? rawDiv.data : [];
+      let dividendRate = 0;
+      for (const d of divArray) dividendRate += asNumber(d?.amount, 0);
+      const dividendYield = isValidPrice(price) ? (dividendRate / price) : 0;
+
+      // Most recent by exDate/payDate
+      const lastDiv = divArray
+        .slice()
+        .sort((a, b) => new Date(b?.exDate ?? b?.payDate ?? 0) - new Date(a?.exDate ?? a?.payDate ?? 0))[0] || {};
+
+      const exDividendDate = lastDiv?.exDate || null;
+      const dividendDate = lastDiv?.payDate || null;
+
+      console.log(`[${new Date().toISOString()}] Finnhub fetched ${symbol}: price ${price}, dividendRate ${dividendRate}, dividendYield ${dividendYield}, exDividendDate ${exDividendDate}, dividendDate ${dividendDate}`);
       return { price, dividendRate, dividendYield, exDividendDate, dividendDate };
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Finnhub error for ${symbol}:`, error.message);
@@ -118,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ========= Fetch Alpha Vantage Data =========
+  // ========= Fetch Alpha Vantage Data (stricter zero/empty guards) =========
   async function fetchAlphaVantageData(symbol) {
     if (!API_KEY) return null;
     if (!isValidSymbol(symbol)) {
@@ -139,7 +148,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const quoteResponse = await fetch(quoteUrl);
       if (!quoteResponse.ok) throw new Error(`Alpha Quote HTTP ${quoteResponse.status}`);
       const quoteData = await quoteResponse.json();
-      const price = asNumber(quoteData['Global Quote']['05. price'], 0);
+
+      const rawPrice = quoteData?.['Global Quote']?.['05. price'];
+      if (!rawPrice) throw new Error('Alpha Vantage empty or rate-limited');
+      const price = asNumber(rawPrice, 0);
+      if (!isValidPrice(price)) throw new Error('Alpha Vantage returned non-positive price');
 
       console.log(`[${new Date().toISOString()}] Alpha Vantage fetched data for ${symbol}: price ${price}, dividendRate ${dividendPerShare}, dividendYield ${dividendYield}, exDividendDate ${exDividendDate}, dividendDate ${dividendDate}`);
       return { price, dividendRate: dividendPerShare, dividendYield, exDividendDate, dividendDate };
@@ -164,7 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const parser = new DOMParser();
       const quoteDoc = parser.parseFromString(quoteText, 'text/html');
       const priceEl = quoteDoc.querySelector('fin-streamer[data-field="regularMarketPrice"]');
-      const price = priceEl ? asNumber(priceEl.textContent.trim(), 0) : 0;
+      const price = asNumber(priceEl ? priceEl.textContent.trim() : null, 0);
 
       const statsUrl = `${CORS_PROXY}https://finance.yahoo.com/quote/${symbol}/key-statistics`;
       const statsResponse = await fetch(statsUrl);
@@ -207,13 +220,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ========= Fetch Real-Time Prices and Dividend Info =========
+  // ========= 💰 Helpers (replaced & added) =========
+  const asNumber = (val, fallback = 0) => {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const isValidPrice = (n) => Number.isFinite(n) && n > 0;
+  // Prefer newPrice if valid; else keep oldPrice if valid; else fallback (entry)
+  const pickPrice = (newPrice, oldPrice, entry) => {
+    if (isValidPrice(newPrice)) return newPrice;
+    if (isValidPrice(oldPrice)) return oldPrice;
+    return isValidPrice(entry) ? entry : null;
+  };
+
+  const fmtUSD = (val) => {
+    const n = asNumber(val);
+    return `$${n.toFixed(2)}`;
+  };
+  const fmtPercent = (val) => {
+    const n = asNumber(val);
+    return `${(n * 100).toFixed(2)}%`;
+  };
+  const formatPL = (value) => {
+    const n = asNumber(value);
+    const color = n >= 0 ? 'green' : 'red';
+    return `<span class="${color}">${fmtUSD(n)}</span>`;
+  };
+  const getPL = (trade) => {
+    const entry = asNumber(trade.entry, 0);
+    const mkt = marketPrices[trade.symbol] ?? entry;
+    const price = asNumber(trade.exit ?? mkt, entry);
+    const qty = asNumber(trade.qty, 0);
+    const multiplier = trade.type === 'option' ? asNumber(trade.multiplier, 100) : 1;
+    return (price - entry) * qty * multiplier;
+  };
+
+  // ========= Fetch Real-Time Prices and Dividend Info (safer assignments) =========
   async function fetchMarketPrices(symbols, force = false) {
     // Optional force refresh ignores cache
     const now = new Date();
     if (!force && lastPriceFetchTime && (now - lastPriceFetchTime) < 5 * 60 * 1000 && Object.keys(marketPrices).length > 0) {
       console.log(`[${new Date().toISOString()}] Using cached prices from ${lastPriceFetchTime.toISOString()}`);
-      document.getElementById('ticker-scroll').textContent = 'Using cached market data';
+      const ticker = document.getElementById('ticker-scroll');
+      if (ticker) ticker.textContent = 'Using cached market data';
       if (apiKeyStatus) apiKeyStatus.textContent = 'Using cached prices (recent).';
       return true;
     }
@@ -227,7 +276,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const promises = batch.map(async (symbol) => {
         if (!isValidSymbol(symbol)) {
           invalidSymbols.push(symbol);
-          marketPrices[symbol] = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
+          const entry = asNumber(trades.find(t => t.symbol === symbol)?.entry, null);
+          const prev = marketPrices[symbol];
+          const picked = pickPrice(null, prev, entry);
+          if (picked != null) marketPrices[symbol] = picked;
           success = false;
           return;
         }
@@ -241,17 +293,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (data === null) {
           data = await fetchYahooData(symbol);
         }
+
         if (data === null) {
-          console.warn(`[${new Date().toISOString()}] No data for ${symbol} from Finnhub, Alpha Vantage, or Yahoo`);
-          marketPrices[symbol] = marketPrices[symbol] || trades.find(t => t.symbol === symbol)?.entry || 0;
-          success = false;
+          console.warn(`[${new Date().toISOString()}] No data for ${symbol} from Finnhub, Alpha, or Yahoo`);
+          const entry = asNumber(trades.find(t => t.symbol === symbol)?.entry, null);
+          const prev = marketPrices[symbol];
+          const picked = pickPrice(null, prev, entry);
+          if (picked == null) {
+            success = false;
+          } else {
+            marketPrices[symbol] = picked;
+          }
         } else {
-          marketPrices[symbol] = data.price;
+          const entry = asNumber(trades.find(t => t.symbol === symbol)?.entry, null);
+          const prev = marketPrices[symbol];
+          const picked = pickPrice(asNumber(data.price, 0), prev, entry);
+          if (picked == null) {
+            console.warn(`[${new Date().toISOString()}] ${symbol}: resolved price invalid; keeping previous/entry if any`);
+            success = false;
+          } else {
+            marketPrices[symbol] = picked;
+          }
           dividendInfo[symbol] = {
-            dividendRate: data.dividendRate,
-            dividendYield: data.dividendYield,
-            exDividendDate: data.exDividendDate,
-            dividendDate: data.dividendDate
+            dividendRate: asNumber(data.dividendRate, 0),
+            dividendYield: asNumber(data.dividendYield, 0),
+            exDividendDate: data.exDividendDate ?? null,
+            dividendDate: data.dividendDate ?? null
           };
         }
       });
@@ -274,7 +341,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (invalidSymbols.length > 0) {
         message = `Invalid symbols: ${invalidSymbols.join(', ')}. ${message}`;
       }
-      document.getElementById('ticker-scroll').textContent = message;
+      const ticker = document.getElementById('ticker-scroll');
+      if (ticker) ticker.textContent = message;
       if (apiKeyStatus) apiKeyStatus.textContent = message;
     }
     return success;
@@ -303,33 +371,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     startPriceUpdates();
   }
 
-  // ========= 💰 Helpers =========
-  const asNumber = (val, fallback = 0) => {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : fallback;
-  };
-  const fmtUSD = (val) => {
-    const n = asNumber(val);
-    return `$${n.toFixed(2)}`;
-  };
-  const fmtPercent = (val) => {
-    const n = asNumber(val);
-    return `${(n * 100).toFixed(2)}%`;
-  };
-  const formatPL = (value) => {
-    const n = asNumber(value);
-    const color = n >= 0 ? 'green' : 'red';
-    return `<span class="${color}">${fmtUSD(n)}</span>`;
-  };
-  const getPL = (trade) => {
-    const entry = asNumber(trade.entry, 0);
-    const mkt = marketPrices[trade.symbol] || entry;
-    const price = asNumber(trade.exit ?? mkt, entry);
-    const qty = asNumber(trade.qty, 0);
-    const multiplier = trade.type === 'option' ? asNumber(trade.multiplier, 100) : 1;
-    return (price - entry) * qty * multiplier;
-  };
-
   // ========= Precompute P/L =========
   function precomputePL() {
     trades.forEach(trade => {
@@ -345,9 +386,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     tbody.innerHTML = '';
     filteredTrades.forEach((trade, index) => {
       const row = document.createElement('tr');
-      const currentPrice = marketPrices[trade.symbol] ? fmtUSD(marketPrices[trade.symbol]) : '-';
+
+      // Show price if key exists, even if value is 0 (we no longer store zeros, but be explicit)
+      const hasPrice = Object.prototype.hasOwnProperty.call(marketPrices, trade.symbol);
+      const currentPrice = hasPrice ? fmtUSD(marketPrices[trade.symbol]) : '-';
+
       const pl = trade.pl || getPL(trade);
       const plHtml = formatPL(pl);
+
       row.innerHTML = `
         <td>${trade.symbol ?? ''}</td>
         <td>${asNumber(trade.qty, 0)}</td>
@@ -583,15 +629,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ========= 📰 Render Ticker =========
+  // ========= 📰 Render Ticker (don’t hide values due to falsy 0) =========
   function renderTicker() {
     const el = document.getElementById('ticker-scroll');
     if (!el) return;
-    if (Object.keys(marketPrices).length === 0) {
+    const keys = Object.keys(marketPrices);
+    if (keys.length === 0) {
       el.textContent = 'Market data unavailable';
       return;
     }
-    const parts = Object.entries(marketPrices).map(([sym, price]) => `${sym}: ${fmtUSD(price)}`);
+    const parts = keys.map(sym => `${sym}: ${fmtUSD(marketPrices[sym])}`);
     el.textContent = parts.join(' | ');
   }
 
@@ -733,14 +780,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ========= Sort Table Function =========
+  // ========= Sort Table Function (selector fix) =========
   function sortTable(tableId, key, asc = true) {
     const table = document.querySelector(tableId);
     const tbody = table.querySelector('tbody');
     const rows = Array.from(tbody.querySelectorAll('tr'));
     rows.sort((a, b) => {
-      let aVal = a.querySelector(`td:nth-child(${getEtfColumnIndex(key)}`)?.textContent.trim() || '';
-      let bVal = b.querySelector(`td:nth-child(${getEtfColumnIndex(key)}`)?.textContent.trim() || '';
+      const col = getEtfColumnIndex(key);
+      let aVal = a.querySelector(`td:nth-child(${col})`)?.textContent.trim() || '';
+      let bVal = b.querySelector(`td:nth-child(${col})`)?.textContent.trim() || '';
       if (key === 'gain' || key === 'dividendRate') {
         aVal = parseFloat(aVal.replace('$', '')) || 0;
         bVal = parseFloat(bVal.replace('$', '')) || 0;
