@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * Trading Journal — robust market pricing & dividends
+ * Trading Journal — robust market pricing & dividends + dependable sidebar nav
+ * - Event-delegated sidebar navigation (works even after re-renders)
  * - Guards against writing zero/negative prices
  * - Sanitizes legacy caches with 0.00 values
  * - Fallback chain: Finnhub → AlphaVantage → Yahoo (JSON → DOM)
@@ -63,7 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<span class="${color}">${fmtUSD(n)}</span>`;
   };
 
-  // ========= Theme / Compact =========
+  // ========= 🌙 Theme / Compact =========
   if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
   $('#darkToggle')?.addEventListener('click', () => {
     document.body.classList.toggle('dark');
@@ -81,6 +82,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('compact', compactToggle.checked ? 'true' : 'false');
     });
   }
+
+  // ========= ✅ NAV: robust event-delegated sidebar switching =========
+  (function setupSidebarNav() {
+    const list = document.querySelector('.sidebar nav ul');
+    if (!list) return;
+
+    function showSection(targetId) {
+      const id = targetId || 'portfolio'; // fallback
+      document.querySelectorAll('main section.switchable').forEach(sec => {
+        sec.style.display = 'none';
+        sec.classList.remove('active-section');
+      });
+      const target = document.getElementById(id);
+      if (target) {
+        target.style.display = 'block';
+        target.classList.add('active-section');
+      }
+    }
+
+    // initial state: show portfolio
+    showSection('portfolio');
+
+    // click handling via delegation
+    list.addEventListener('click', (e) => {
+      const li = e.target.closest('li[data-target]');
+      if (!li || !list.contains(li)) return;
+
+      list.querySelectorAll('li').forEach(x => x.classList.remove('active'));
+      li.classList.add('active');
+
+      const targetId = li.getAttribute('data-target') || 'portfolio';
+      showSection(targetId);
+    });
+  })();
 
   // ========= API Key control =========
   const apiKeyInput = $('#apiKeyInput');
@@ -204,14 +239,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (jsonMatch) {
         try {
           const root = JSON.parse(jsonMatch[1]);
-          // The path tends to be: quotes > price > regularMarketPrice.raw
           const priceRaw =
             root?.context?.dispatcher?.stores?.QuoteSummaryStore?.price?.regularMarketPrice?.raw ??
             root?.context?.dispatcher?.stores?.StreamDataStore?.quoteData?.[symbol]?.regularMarketPrice?.raw ??
             null;
 
           const price = asNumber(priceRaw, 0);
-          // Dividend fields are spread; we may skip precise dividend on Yahoo for reliability
           if (isValidPrice(price)) {
             return { price, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
           }
@@ -220,18 +253,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
 
-      // DOM fallback (less reliable if Yahoo changes markup)
+      // DOM fallback
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       let price = 0;
-      // common selectors
       const streamer = doc.querySelector('fin-streamer[data-field="regularMarketPrice"]') ||
                        doc.querySelector('fin-streamer[data-test="qsp-price"]');
       if (streamer) {
         price = asNumber((streamer.textContent || '').trim(), 0);
       }
       if (!isValidPrice(price)) {
-        // last resort: regex raw price
         const rawMatch = html.match(/"regularMarketPrice":\s*\{"raw":\s*([\d.]+)/);
         price = asNumber(rawMatch?.[1], 0);
       }
@@ -731,9 +762,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
     dropZone.addEventListener('drop', (e) => {
-      e.preventDefault(); dropZone.classList.remove('dragover');
+      e.preventDefault(); dropZone.removeAttribute('class'); // remove dragover and others
       const f = e.dataTransfer.files?.[0];
-      if (f && f.type === 'text/csv') handleCSVFile(f);
+      if (f && (f.type === 'text/csv' || f.name.endsWith('.csv'))) handleCSVFile(f);
     });
   }
   async function handleCSVFile(file) {
@@ -877,6 +908,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     maxDrawdownEl.textContent = `-${maxDD.toFixed(2)}%`;
   }
 
+  // ========= Greeks Calculator =========
+  const greeksForm = document.getElementById('greeksForm');
+  if (greeksForm) {
+    greeksForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const S = parseFloat(document.getElementById('spotPrice').value);
+      const K = parseFloat(document.getElementById('strikePrice').value);
+      const T = parseFloat(document.getElementById('timeToExpiration').value);
+      const r = parseFloat(document.getElementById('riskFreeRate').value);
+      const sigma = parseFloat(document.getElementById('volatility').value);
+      const optionType = document.getElementById('optionType').value;
+
+      const d1 = (Math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * Math.sqrt(T));
+      const d2 = d1 - sigma * Math.sqrt(T);
+      const normcdf = (x) => {
+        let t = 1 / (1 + 0.2316419 * Math.abs(x));
+        let d = 0.3989 * Math.exp(-x * x / 2);
+        let p = d * t * (0.3194 + t * (-0.3566 + t * (1.7815 + t * (-1.8213 + t * 1.3303))));
+        if (x > 0) p = 1 - p;
+        return p;
+      };
+
+      let delta, gamma, theta, vega, rho;
+      if (optionType === 'call') {
+        delta = normcdf(d1);
+        theta = - (S * sigma * Math.exp(-0.5 * d1 * d1) / (Math.sqrt(2 * Math.PI) * Math.sqrt(T))) - r * K * Math.exp(-r * T) * normcdf(d2);
+        rho = K * T * Math.exp(-r * T) * normcdf(d2);
+      } else {
+        delta = normcdf(d1) - 1;
+        theta = - (S * sigma * Math.exp(-0.5 * d1 * d1) / (Math.sqrt(2 * Math.PI) * Math.sqrt(T))) + r * K * Math.exp(-r * T) * (1 - normcdf(d2));
+        rho = - K * T * Math.exp(-r * T) * (1 - normcdf(d2));
+      }
+      gamma = Math.exp(-0.5 * d1 * d1) / (S * sigma * Math.sqrt(2 * Math.PI * T));
+      vega = S * Math.sqrt(T) * Math.exp(-0.5 * d1 * d1) / Math.sqrt(2 * Math.PI);
+
+      const result = `
+        Delta: ${delta.toFixed(4)}<br>
+        Gamma: ${gamma.toFixed(4)}<br>
+        Theta: ${theta.toFixed(4)}<br>
+        Vega: ${vega.toFixed(4)}<br>
+        Rho: ${rho.toFixed(4)}
+      `;
+      document.getElementById('greeksResult').innerHTML = result;
+    });
+  }
+
   // ========= Form handling =========
   const tradeForm = $('#tradeForm');
   if (tradeForm) {
@@ -961,6 +1038,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await init();
   startPriceUpdates();
 });
+
 
 
 
