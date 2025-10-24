@@ -91,11 +91,22 @@
     </section>
     <!-- Alerts -->
     <section id="alerts" class="switchable" style="display:none;">
-      <h2>Recent Alerts</h2>
-      <ul id="alertsList">
-        <li>AAPL | $150 | Above</li>
-        <li>MSFT | $200 | Below</li>
-      </ul>
+      <h2>Alerts</h2>
+      <form id="alertForm">
+        <label>Symbol: <input type="text" id="alertSymbol" placeholder="e.g. AAPL" required></label>
+        <label>Price Threshold: <input type="number" id="alertPrice" step="0.01" required></label>
+        <label>Type:
+          <select id="alertType">
+            <option value="above">Above</option>
+            <option value="below">Below</option>
+          </select>
+        </label>
+        <button type="submit">Add Alert</button>
+      </form>
+      <h3>Recent Alerts</h3>
+      <ul id="alertsList"></ul>
+      <h3>Active Alerts</h3>
+      <ul id="activeAlertsList"></ul>
     </section>
     <!-- Greeks Calculator -->
     <section id="greeks-calculator" class="switchable" style="display:none;">
@@ -127,6 +138,11 @@
         Alpha Vantage API Key (optional for Yahoo Finance):
         <input type="text" id="apiKeyInput" placeholder="Enter your API key" />
         <button id="saveApiKey">Save API Key</button>
+      </label>
+      <label>
+        Polygon.io API Key (optional for enhanced dividends):
+        <input type="text" id="polygonKeyInput" placeholder="Enter your Polygon key" />
+        <button id="savePolygonKey">Save Polygon Key</button>
       </label>
       <p id="apiKeyStatus" style="color: var(--red);"></p>
     </section>
@@ -198,17 +214,17 @@
         </table>
       </div>
     </section>
-    <!-- ETF Dividend Chart -->
-    <section class="etf-dividend-chart">
-      <h2>ETF Dividend Gain Distribution</h2>
-      <canvas id="etfDividendChart"></canvas>
+    <!-- Dividend Yield Chart -->
+    <section class="dividend-yield-chart">
+      <h2>Dividend Yield Distribution</h2>
+      <canvas id="dividendYieldChart"></canvas>
     </section>
     <!-- Add / Edit Trade Form -->
     <section class="trade-entry">
       <h2>Add / Edit Trade</h2>
       <form id="tradeForm">
         <label>Symbol: <input type="text" name="symbol" required pattern="[A-Z]{1,5}" title="Enter a valid stock symbol (1-5 uppercase letters)" /></label>
-        <label>Qty: <input type="number" name="qty" required /></label>
+        <label>Qty: <input type="number" name="qty" step="0.01" required /></label>
         <label>Entry Price: <input type="number" name="entry" step="0.01" required /></label>
         <label>Entry Date: <input type="date" name="date" required /></label>
         <label>Exit Price: <input type="number" name="exit" step="0.01" /></label>
@@ -241,6 +257,7 @@
   <script src="script.js"></script>
 </body>
 </html>
+
 
 
 
