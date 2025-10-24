@@ -1,19 +1,19 @@
 'use strict';
 
 /**
- * Trading Journal — robust market pricing & dividends + dependable sidebar nav
- * - Event-delegated sidebar navigation (works even after re-renders)
- * - Guards against writing zero/negative prices
- * - Sanitizes legacy caches with 0.00 values
- * - Fallback chain: Finnhub → AlphaVantage → Yahoo (JSON → DOM)
- * - Renders without $0.00 ticker artifacts
+ * Trading Journal — robust pricing + dividends + solid sidebar nav
+ * - Event-delegated sidebar navigation (fallback to 'portfolio')
+ * - Yahoo JSON quote endpoint fallback (via CORS proxy)
+ * - fetchMarketPrices never caches entry fallbacks; only caches real quotes
+ * - Cache TTL respected only when every symbol has a valid cached quote
+ * - Ticker renders only valid prices; tables show entry when live missing
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
   // ========= Config / Keys =========
-  let API_KEY = (localStorage.getItem('apiKey') || 'FTDRTP0955507PPC').trim(); // Alpha Vantage (may rate limit)
+  let API_KEY = (localStorage.getItem('apiKey') || 'FTDRTP0955507PPC').trim(); // Alpha Vantage
   const FINNHUB_TOKEN = 'd3f79jpr01qolknc02sgd3f79jpr01qolknc02t0';             // Demo-ish token string
-  const CORS_PROXY = 'https://proxy.corsfix.com/?';                               // CORS proxy for Yahoo pages
+  const CORS_PROXY = 'https://proxy.corsfix.com/?';                               // Proxy for Yahoo
   const PRICE_CACHE_TTL_MS = 5 * 60 * 1000;                                       // 5 minutes
 
   // ========= Local state / caches =========
@@ -37,32 +37,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= Utilities =========
   const $ = (sel) => document.querySelector(sel);
   const $all = (sel) => document.querySelectorAll(sel);
-  function safeJson(txt, def) {
-    try { return JSON.parse(txt ?? ''); } catch { return def; }
-  }
-  // Allow A–Z, numbers, dots & hyphens (to support BRK.B, BF-B, RY.TO, etc.)
-  const isValidSymbol = (symbol) => /^[A-Z][A-Z0-9.\-]{0,9}$/.test(String(symbol || '').toUpperCase());
-
-  const asNumber = (val, fallback = 0) => {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : fallback;
-  };
+  function safeJson(txt, def) { try { return JSON.parse(txt ?? ''); } catch { return def; } }
+  // Accept A–Z, numbers, dots & hyphens
+  const isValidSymbol = (s) => /^[A-Z][A-Z0-9.\-]{0,9}$/.test(String(s || '').toUpperCase());
+  const asNumber = (val, fallback = 0) => { const n = Number(val); return Number.isFinite(n) ? n : fallback; };
   const isValidPrice = (n) => Number.isFinite(n) && n > 0;
-
-  // Prefer newPrice if valid; else keep oldPrice if valid; else fallback (entry)
-  const pickPrice = (newPrice, oldPrice, entry) => {
-    if (isValidPrice(newPrice)) return newPrice;
-    if (isValidPrice(oldPrice)) return oldPrice;
-    return isValidPrice(entry) ? entry : null;
-  };
-
   const fmtUSD = (val) => `$${asNumber(val).toFixed(2)}`;
   const fmtPercent = (val) => `${(asNumber(val) * 100).toFixed(2)}%`;
-  const formatPL = (value) => {
-    const n = asNumber(value);
-    const color = n >= 0 ? 'green' : 'red';
-    return `<span class="${color}">${fmtUSD(n)}</span>`;
-  };
+  const formatPL = (value) => `<span class="${asNumber(value) >= 0 ? 'green' : 'red'}">${fmtUSD(asNumber(value))}</span>`;
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   // ========= 🌙 Theme / Compact =========
   if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
@@ -83,41 +66,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ========= ✅ NAV: robust event-delegated sidebar switching =========
+  // ========= ✅ NAV: event-delegated sidebar switching (fallback to portfolio) =========
   (function setupSidebarNav() {
     const list = document.querySelector('.sidebar nav ul');
     if (!list) return;
 
     function showSection(targetId) {
-      const id = targetId || 'portfolio'; // fallback
+      const id = targetId || 'portfolio';
       document.querySelectorAll('main section.switchable').forEach(sec => {
         sec.style.display = 'none';
         sec.classList.remove('active-section');
       });
-      const target = document.getElementById(id);
-      if (target) {
-        target.style.display = 'block';
-        target.classList.add('active-section');
-      }
+      const t = document.getElementById(id);
+      if (t) { t.style.display = 'block'; t.classList.add('active-section'); }
     }
 
-    // initial state: show portfolio
+    // initial state
     showSection('portfolio');
 
-    // click handling via delegation
     list.addEventListener('click', (e) => {
       const li = e.target.closest('li[data-target]');
       if (!li || !list.contains(li)) return;
-
       list.querySelectorAll('li').forEach(x => x.classList.remove('active'));
       li.classList.add('active');
-
-      const targetId = li.getAttribute('data-target') || 'portfolio';
-      showSection(targetId);
+      showSection(li.getAttribute('data-target') || 'portfolio');
     });
   })();
 
-  // ========= API Key control =========
+  // ========= Refresh button (force refetch) =========
+  const refreshBtn = $('#refreshPrices');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Refreshing...';
+      localStorage.removeItem('lastPriceFetchTime'); // bust TTL
+      const ok = await fetchMarketPrices(trades.map(t => t.symbol), true);
+      precomputePL();
+      renderAll();
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = 'Refresh Prices';
+      if ($('#apiKeyStatus')) $('#apiKeyStatus').textContent = ok ? 'Prices refreshed successfully.' : 'Some prices failed to refresh.';
+    });
+  }
+
+  // ========= API Key controls =========
   const apiKeyInput = $('#apiKeyInput');
   const saveApiKeyBtn = $('#saveApiKey');
   const apiKeyStatus = $('#apiKeyStatus');
@@ -127,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       API_KEY = (apiKeyInput.value || '').trim();
       localStorage.setItem('apiKey', API_KEY);
       rateLimitHit = false;
-      apiKeyStatus.textContent = API_KEY ? 'API key saved. Fetching prices...' : 'No API key provided (using Yahoo fallback).';
+      apiKeyStatus.textContent = API_KEY ? 'API key saved. Fetching prices...' : 'No API key provided (relying on Yahoo fallback).';
       await fetchMarketPrices(trades.map(t => t.symbol), true);
       precomputePL();
       renderAll();
@@ -135,38 +127,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ========= Sanitize legacy caches (remove 0 or negative) =========
+  // ========= Sanitize caches (remove invalid/zero quotes) =========
   const hadInvalidCache = sanitizePriceCache();
   function sanitizePriceCache() {
     let invalidFound = false;
     for (const [sym, price] of Object.entries(marketPrices)) {
-      if (!isValidPrice(price)) {
-        delete marketPrices[sym];
-        invalidFound = true;
-      }
+      if (!isValidPrice(price)) { delete marketPrices[sym]; invalidFound = true; }
     }
-    if (invalidFound) {
-      localStorage.setItem('marketPrices', JSON.stringify(marketPrices));
-    }
+    if (invalidFound) localStorage.setItem('marketPrices', JSON.stringify(marketPrices));
     return invalidFound;
   }
 
   // ========= Data fetchers =========
   async function fetchFinnhubData(symbol) {
     try {
-      const quoteUrl = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_TOKEN}`;
-      const qRes = await fetch(quoteUrl);
+      const qRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_TOKEN}`);
       if (!qRes.ok) throw new Error(`Finnhub quote HTTP ${qRes.status}`);
       const q = await qRes.json();
       const price = asNumber(q?.c, 0);
 
-      // Dividends
+      // Dividends (last 1y)
       const from = new Date(); from.setFullYear(from.getFullYear() - 1);
       const fromStr = from.toISOString().split('T')[0];
       const toStr = new Date().toISOString().split('T')[0];
-
-      const divUrl = `https://finnhub.io/api/v1/stock/dividend2?symbol=${symbol}&from=${fromStr}&to=${toStr}&token=${FINNHUB_TOKEN}`;
-      const dRes = await fetch(divUrl);
+      const dRes = await fetch(`https://finnhub.io/api/v1/stock/dividend2?symbol=${symbol}&from=${fromStr}&to=${toStr}&token=${FINNHUB_TOKEN}`);
       if (!dRes.ok) throw new Error(`Finnhub dividend HTTP ${dRes.status}`);
       const rawDiv = await dRes.json();
       const arr = Array.isArray(rawDiv) ? rawDiv : Array.isArray(rawDiv?.data) ? rawDiv.data : [];
@@ -192,30 +176,75 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // Yahoo JSON endpoint (preferred), with fallbacks to embedded JSON and DOM
+  async function fetchYahooData(symbol) {
+    if (!isValidSymbol(symbol)) return null;
+    try {
+      // JSON quote endpoint
+      const jsonUrl = `${CORS_PROXY}https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
+      const r = await fetch(jsonUrl);
+      if (!r.ok) throw new Error(`Yahoo JSON HTTP ${r.status}`);
+      const j = await r.json();
+      const result = j?.quoteResponse?.result?.[0];
+      const price = asNumber(result?.regularMarketPrice, 0);
+      if (isValidPrice(price)) {
+        return { price, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
+      }
+
+      // Page fallback (embedded JSON then DOM)
+      const pageUrl = `${CORS_PROXY}https://finance.yahoo.com/quote/${symbol}`;
+      const res = await fetch(pageUrl);
+      if (!res.ok) throw new Error(`Yahoo page HTTP ${res.status}`);
+      const html = await res.text();
+
+      // Embedded JSON (root.App.main)
+      const jsonMatch = html.match(/root\.App\.main\s*=\s*(\{.*?\});\s*<\/script>/s);
+      if (jsonMatch) {
+        try {
+          const root = JSON.parse(jsonMatch[1]);
+          const priceRaw =
+            root?.context?.dispatcher?.stores?.QuoteSummaryStore?.price?.regularMarketPrice?.raw ??
+            root?.context?.dispatcher?.stores?.StreamDataStore?.quoteData?.[symbol]?.regularMarketPrice?.raw ??
+            null;
+          const p2 = asNumber(priceRaw, 0);
+          if (isValidPrice(p2)) return { price: p2, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
+        } catch { /* ignore */ }
+      }
+
+      // DOM fallback
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const streamer = doc.querySelector('fin-streamer[data-field="regularMarketPrice"], fin-streamer[data-test="qsp-price"]');
+      const p3 = streamer ? asNumber((streamer.textContent || '').trim(), 0) : 0;
+      if (isValidPrice(p3)) return { price: p3, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
+
+      throw new Error('Yahoo price not found or invalid');
+    } catch (e) {
+      console.warn(`[Yahoo] ${symbol}: ${e.message}`);
+      return null;
+    }
+  }
+
   async function fetchAlphaVantageData(symbol) {
     if (!API_KEY) return null;
     if (!isValidSymbol(symbol)) return null;
     try {
       // Overview for dividends
-      const ovUrl = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`;
-      const ovRes = await fetch(ovUrl);
+      const ovRes = await fetch(`https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${API_KEY}`);
       if (!ovRes.ok) throw new Error(`Alpha Overview HTTP ${ovRes.status}`);
       const ov = await ovRes.json();
-
       const dividendYield = asNumber(ov?.DividendYield, 0);
       const dividendPerShare = asNumber(ov?.DividendPerShare, 0);
       const exDividendDate = ov?.ExDividendDate || null;
       const dividendDate = ov?.DividendDate || null;
 
       // Quote
-      const qUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`;
-      const qRes = await fetch(qUrl);
+      const qRes = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`);
       if (!qRes.ok) throw new Error(`Alpha Quote HTTP ${qRes.status}`);
       const q = await qRes.json();
       const rawPrice = q?.['Global Quote']?.['05. price'];
-      if (!rawPrice) throw new Error('Alpha Vantage empty or rate-limited');
       const price = asNumber(rawPrice, 0);
-      if (!isValidPrice(price)) throw new Error('Alpha Vantage returned non-positive price');
+      if (!isValidPrice(price)) throw new Error('Alpha Vantage returned non-positive/empty price');
 
       return { price, dividendRate: dividendPerShare, dividendYield, exDividendDate, dividendDate };
     } catch (e) {
@@ -225,71 +254,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // Yahoo: try embedded JSON first (most reliable), then DOM fallback
-  async function fetchYahooData(symbol) {
-    if (!isValidSymbol(symbol)) return null;
-    try {
-      const pageUrl = `${CORS_PROXY}https://finance.yahoo.com/quote/${symbol}`;
-      const res = await fetch(pageUrl);
-      if (!res.ok) throw new Error(`Yahoo quote HTTP ${res.status}`);
-      const html = await res.text();
-
-      // Try to extract price from embedded JSON (root.App.main)
-      const jsonMatch = html.match(/root\.App\.main\s*=\s*(\{.*?\});\s*<\/script>/s);
-      if (jsonMatch) {
-        try {
-          const root = JSON.parse(jsonMatch[1]);
-          const priceRaw =
-            root?.context?.dispatcher?.stores?.QuoteSummaryStore?.price?.regularMarketPrice?.raw ??
-            root?.context?.dispatcher?.stores?.StreamDataStore?.quoteData?.[symbol]?.regularMarketPrice?.raw ??
-            null;
-
-          const price = asNumber(priceRaw, 0);
-          if (isValidPrice(price)) {
-            return { price, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
-          }
-        } catch {
-          // fall through to DOM parsing
-        }
-      }
-
-      // DOM fallback
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      let price = 0;
-      const streamer = doc.querySelector('fin-streamer[data-field="regularMarketPrice"]') ||
-                       doc.querySelector('fin-streamer[data-test="qsp-price"]');
-      if (streamer) {
-        price = asNumber((streamer.textContent || '').trim(), 0);
-      }
-      if (!isValidPrice(price)) {
-        const rawMatch = html.match(/"regularMarketPrice":\s*\{"raw":\s*([\d.]+)/);
-        price = asNumber(rawMatch?.[1], 0);
-      }
-      if (!isValidPrice(price)) throw new Error('Yahoo price not found or invalid');
-
-      return { price, dividendRate: 0, dividendYield: 0, exDividendDate: null, dividendDate: null };
-    } catch (e) {
-      console.warn(`[Yahoo] ${symbol}: ${e.message}`);
-      return null;
-    }
-  }
-
-  // ========= Price & Dividend orchestration =========
+  // ========= Price & Dividend orchestration (NO caching of entry fallbacks) =========
   async function fetchMarketPrices(symbols, force = false) {
-    // Decide whether to use cache
     const now = new Date();
     const cacheFresh = lastPriceFetchTime && (now - lastPriceFetchTime) < PRICE_CACHE_TTL_MS && Object.keys(marketPrices).length > 0;
 
-    // If cache is fresh AND contains only valid prices AND not forcing → use cache
-    if (!force && cacheFresh && !containsInvalidPrices(symbols)) {
+    // Use cache only if EVERY requested symbol has a valid cached price
+    const needsFetch = force || symbols.some(s => !isValidPrice(marketPrices[String(s).toUpperCase()]));
+    if (!needsFetch && cacheFresh) {
       console.log(`[cache] Using cached prices from ${lastPriceFetchTime?.toISOString?.()}`);
-      $('#ticker-scroll') && ($('#ticker-scroll').textContent = 'Using cached market data');
-      apiKeyStatus && (apiKeyStatus.textContent = 'Using cached prices (recent).');
+      if ($('#ticker-scroll')) $('#ticker-scroll').textContent = 'Using cached market data';
+      if (apiKeyStatus) apiKeyStatus.textContent = 'Using cached prices (recent).';
       return true;
     }
 
-    // Otherwise, fetch in small batches
     const uniqueSymbols = [...new Set(symbols.map(s => s.toUpperCase()))];
     let success = true;
     let invalidSymbols = [];
@@ -300,40 +278,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       await Promise.all(batch.map(async (symbol) => {
         if (!isValidSymbol(symbol)) {
           invalidSymbols.push(symbol);
-          const entry = getEntryFor(symbol);
-          const prev = marketPrices[symbol];
-          const picked = pickPrice(null, prev, entry);
-          if (picked != null) marketPrices[symbol] = picked;
           success = false;
           return;
         }
 
-        // Finnhub → Alpha → Yahoo
+        // Try sources: Finnhub → Yahoo JSON → Alpha → Yahoo (again, page path)
         let data = await fetchFinnhubData(symbol);
-        if (data === null) data = await fetchAlphaVantageData(symbol);
         if (data === null) data = await fetchYahooData(symbol);
+        if (data === null) data = await fetchAlphaVantageData(symbol);
+        if (data === null) data = await fetchYahooData(symbol); // last attempt
 
-        if (data === null) {
-          // Keep previous or entry if possible — but never write 0
-          console.warn(`[prices] No source data for ${symbol}`);
-          const entry = getEntryFor(symbol);
-          const prev = marketPrices[symbol];
-          const picked = pickPrice(null, prev, entry);
-          if (picked == null) success = false;
-          else marketPrices[symbol] = picked;
+        // If we still don't have a valid live price, DO NOT cache entry fallback
+        const live = asNumber(data?.price, 0);
+        if (!isValidPrice(live)) {
+          console.warn(`[prices] No live data for ${symbol}; showing entry/exit in UI but not caching fallback.`);
+          success = false;
           return;
         }
 
-        const entry = getEntryFor(symbol);
-        const prev = marketPrices[symbol];
-        const picked = pickPrice(asNumber(data.price, 0), prev, entry);
-
-        if (picked == null) {
-          console.warn(`[prices] ${symbol} resolved invalid; keeping previous/entry if any`);
-          success = false;
-        } else {
-          marketPrices[symbol] = picked; // always positive here
-        }
+        // Valid live price → write to cache
+        marketPrices[symbol] = live;
 
         // Dividends (store even if 0)
         dividendInfo[symbol] = {
@@ -344,26 +308,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
       }));
 
-      // Basic pacing for Alpha Vantage
+      // gentle pacing for Alpha Vantage
       if (i + batchSize < uniqueSymbols.length && API_KEY && !rateLimitHit) {
         await sleep(1200);
       }
     }
 
-    // Persist only valid prices
-    sanitizePriceCache();
+    // Clean any invalid cache values (paranoia)
+    for (const [sym, p] of Object.entries(marketPrices)) {
+      if (!isValidPrice(p)) delete marketPrices[sym];
+    }
+
     localStorage.setItem('marketPrices', JSON.stringify(marketPrices));
     localStorage.setItem('dividendInfo', JSON.stringify(dividendInfo));
     localStorage.setItem('lastPriceFetchTime', new Date().toISOString());
     lastPriceFetchTime = new Date();
 
-    // Status line
+    // Status
     if (success) {
       apiKeyStatus && (apiKeyStatus.textContent = 'Prices and dividends updated successfully.');
     } else {
       let msg = rateLimitHit
-        ? 'Alpha Vantage rate limit exceeded. Used Yahoo/cached prices.'
-        : 'Some prices failed. Used previous or entry values.';
+        ? 'Alpha Vantage rate limit exceeded. Used Yahoo/cached prices where possible.'
+        : 'Some live prices failed. Showing entry price for those and will retry.';
       if (invalidSymbols.length) msg = `Invalid symbols: ${invalidSymbols.join(', ')}. ${msg}`;
       $('#ticker-scroll') && ($('#ticker-scroll').textContent = msg);
       apiKeyStatus && (apiKeyStatus.textContent = msg);
@@ -372,26 +339,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     return success;
   }
 
-  function containsInvalidPrices(symbols) {
-    for (const s of symbols) {
-      const sym = String(s).toUpperCase();
-      const val = marketPrices[sym];
-      if (!isValidPrice(val)) return true;
-    }
-    return false;
-  }
-
-  function getEntryFor(symbol) {
-    const t = trades.find(x => x.symbol === symbol);
-    return asNumber(t?.entry, null);
-  }
-
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
   // ========= P/L =========
   function getPL(trade) {
     const entry = asNumber(trade.entry, 0);
-    // Use exit if closed; else last valid market; fallback entry (never 0)
+    // Use exit if closed; else last valid market; fallback to entry (for math only)
     const mkt = isValidPrice(marketPrices[trade.symbol]) ? marketPrices[trade.symbol] : entry;
     const price = asNumber(trade.exit ?? mkt, entry);
     const qty = asNumber(trade.qty, 0);
@@ -410,6 +361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     filtered.forEach((trade, index) => {
       const hasKey = Object.prototype.hasOwnProperty.call(marketPrices, trade.symbol);
       const valid = isValidPrice(marketPrices[trade.symbol]);
+      // Show live if valid; else show exit (if closed) else entry
       const lastShown = valid ? marketPrices[trade.symbol] : asNumber(trade.exit ?? trade.entry, trade.entry);
 
       const row = document.createElement('tr');
@@ -423,7 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${trade.multiplier ?? (trade.type === 'option' ? 100 : 1)}</td>
         <td>${trade.type ?? 'stock'}</td>
         <td data-broker="${trade.broker ?? ''}">${trade.broker ?? ''}</td>
-        <td class="current-price">${hasKey ? fmtUSD(lastShown) : '-'}</td>
+        <td class="current-price">${hasKey || trade.exit != null ? fmtUSD(lastShown) : '-'}</td>
         <td class="pl">${formatPL(trade.pl ?? getPL(trade))}</td>
         <td>${trade.notes ?? '-'}</td>
         <td>
@@ -443,10 +395,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const el = $('#ticker-scroll');
     if (!el) return;
     const keys = Object.keys(marketPrices).filter(sym => isValidPrice(marketPrices[sym]));
-    if (keys.length === 0) {
-      el.textContent = 'Market data unavailable';
-      return;
-    }
+    if (keys.length === 0) { el.textContent = 'Market data unavailable'; return; }
     el.textContent = keys.map(sym => `${sym}: ${fmtUSD(marketPrices[sym])}`).join(' | ');
   }
 
@@ -468,11 +417,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     Object.entries(brokers).forEach(([b, v]) => {
       totalR += v.realized; totalU += v.unrealized;
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${b}</td>
-        <td>${formatPL(v.realized)}</td>
-        <td>${formatPL(v.unrealized)}</td>
-      `;
+      tr.innerHTML = `<td>${b}</td><td>${formatPL(v.realized)}</td><td>${formatPL(v.unrealized)}</td>`;
       tbody.appendChild(tr);
     });
     combined.innerHTML = formatPL(totalR + totalU);
@@ -657,10 +602,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function saveEditedTrade(row, index) {
     const cells = row.querySelectorAll('td');
     const symbol = String(cells[0].querySelector('input')?.value || '').toUpperCase();
-    if (!isValidSymbol(symbol)) {
-      alert(`Invalid symbol: ${symbol}. Use capital letters, digits, dot, or hyphen.`);
-      return;
-    }
+    if (!isValidSymbol(symbol)) return alert(`Invalid symbol: ${symbol}`);
+
     const updated = {
       symbol,
       qty: asNumber(cells[1].querySelector('input')?.value, 0),
@@ -762,7 +705,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
     dropZone.addEventListener('drop', (e) => {
-      e.preventDefault(); dropZone.removeAttribute('class'); // remove dragover and others
+      e.preventDefault(); dropZone.removeAttribute('class');
       const f = e.dataTransfer.files?.[0];
       if (f && (f.type === 'text/csv' || f.name.endsWith('.csv'))) handleCSVFile(f);
     });
@@ -847,10 +790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (symbolCanvas) {
       destroyChartIfAny(symbolCanvas);
       const agg = {};
-      trades.forEach(t => {
-        const v = t.pl ?? getPL(t);
-        agg[t.symbol] = (agg[t.symbol] || 0) + v;
-      });
+      trades.forEach(t => { const v = t.pl ?? getPL(t); agg[t.symbol] = (agg[t.symbol] || 0) + v; });
       const chart = new Chart(symbolCanvas, {
         type: 'pie',
         data: { labels: Object.keys(agg), datasets: [{ data: Object.values(agg), backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900'] }] },
@@ -864,11 +804,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (brokerCanvas) {
       destroyChartIfAny(brokerCanvas);
       const agg = {};
-      trades.forEach(t => {
-        const v = t.pl ?? getPL(t);
-        const b = t.broker || 'Unknown';
-        agg[b] = (agg[b] || 0) + v;
-      });
+      trades.forEach(t => { const v = t.pl ?? getPL(t); const b = t.broker || 'Unknown'; agg[b] = (agg[b] || 0) + v; });
       const chart = new Chart(brokerCanvas, {
         type: 'pie',
         data: { labels: Object.keys(agg), datasets: [{ data: Object.values(agg), backgroundColor: ['#FFDE59', '#7DDA58', '#5DE2E7', '#FE9900', '#DFC57B'] }] },
@@ -1015,9 +951,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function init() {
-    // If we had invalid cached prices, force a refresh so we don’t display $0.00
     const symbols = trades.map(t => t.symbol);
-    const force = hadInvalidCache || containsInvalidPrices(symbols);
+    const force = hadInvalidCache || symbols.some(s => !isValidPrice(marketPrices[String(s).toUpperCase()]));
     await fetchMarketPrices(symbols, force);
     precomputePL();
     await renderAll();
@@ -1038,6 +973,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await init();
   startPriceUpdates();
 });
+
 
 
 
