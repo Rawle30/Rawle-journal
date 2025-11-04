@@ -9,7 +9,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   // ========= Config / Keys =========
   let API_KEY = (localStorage.getItem('apiKey') || 'FTDRTP0955507PPC').trim(); // Alpha Vantage (may rate limit)
-  let POLYGON_KEY = (localStorage.getItem('polygonKey') || '').trim();
+  let POLYGON_KEY = (localStorage.getItem('polygonKey') |NwqcDCmG_VpyNGIpeiubgB3f26ztrPLB| '').trim();
   const FINNHUB_TOKEN = 'd3f79jpr01qolknc02sgd3f79jpr01qolknc02t0'; // Demo-ish token string
   const CORS_PROXY = 'https://allorigins.win/get?url='; // Updated CORS proxy
   const PRICE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
