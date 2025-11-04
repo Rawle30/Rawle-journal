@@ -355,12 +355,8 @@ body.dark .ticker {
   background-color: #333;
   color: #fff;
 }
-body.dark #darkToggle {
-  background-color: #444;
-  color: #fff;
-}
-body.dark #darkToggle:hover {
-  background-color: #555;
+body.dark button {
+  color: #000;
 }
 body.dark #dropZone {
   background-color: #222;
