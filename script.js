@@ -9,6 +9,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   // ========= Config / Keys =========
   let API_KEY = (localStorage.getItem('apiKey') || 'FTDRTP0955507PPC').trim(); // Alpha Vantage (may rate limit)
+  let POLYGON_KEY = (localStorage.getItem('polygonKey') || '').trim();
   const FINNHUB_TOKEN = 'd3f79jpr01qolknc02sgd3f79jpr01qolknc02t0'; // Demo-ish token string
   const CORS_PROXY = 'https://allorigins.win/get?url='; // Updated CORS proxy
   const PRICE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -87,6 +88,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       precomputePL();
       renderAll();
       restartPriceUpdates();
+    });
+  }
+  const polygonKeyInput = $('#polygonKeyInput');
+  const savePolygonKeyBtn = $('#savePolygonKey');
+  if (polygonKeyInput && savePolygonKeyBtn) {
+    polygonKeyInput.value = POLYGON_KEY;
+    savePolygonKeyBtn.addEventListener('click', async () => {
+      POLYGON_KEY = (polygonKeyInput.value || '').trim();
+      localStorage.setItem('polygonKey', POLYGON_KEY);
+      apiKeyStatus.textContent = POLYGON_KEY ? 'Polygon key saved. Fetching dividends...' : 'No Polygon key provided.';
+      await fetchMarketPrices(trades.map(t => t.symbol), true);
+      renderAll();
     });
   }
   // ========= Sanitize legacy caches (remove 0 or negative) =========
@@ -222,6 +235,41 @@ document.addEventListener('DOMContentLoaded', async () => {
       return null;
     }
   }
+  async function fetchPolygonData(symbol) {
+    if (!POLYGON_KEY) return null;
+    if (!isValidSymbol(symbol)) return null;
+    try {
+      const from = new Date(); from.setFullYear(from.getFullYear() - 1);
+      const fromStr = from.toISOString().split('T')[0];
+      const toStr = new Date().toISOString().split('T')[0];
+      const divUrl = `https://api.polygon.io/v3/reference/dividends?ticker=${symbol}&ex_dividend_date.gte=${fromStr}&ex_dividend_date.lte=${toStr}&apiKey=${POLYGON_KEY}`;
+      const dRes = await fetch(divUrl);
+      if (!dRes.ok) throw new Error(`Polygon HTTP ${dRes.status}`);
+      const rawDiv = await dRes.json();
+      const arr = Array.isArray(rawDiv.results) ? rawDiv.results : [];
+      let dividendRate = 0;
+      for (const d of arr) dividendRate += asNumber(d.cash_amount, 0);
+      const qUrl = `https://api.polygon.io/v2/aggs/ticker/${symbol}/prev?apiKey=${POLYGON_KEY}`;
+      const qRes = await fetch(qUrl);
+      if (!qRes.ok) throw new Error(`Polygon quote HTTP ${qRes.status}`);
+      const rawQ = await qRes.json();
+      const price = asNumber(rawQ.results?.[0]?.c, 0);
+      const dividendYield = isValidPrice(price) ? dividendRate / price : 0;
+      const lastDiv = arr.slice().sort((a, b) =>
+        new Date(b.ex_dividend_date ?? b.pay_date ?? 0) - new Date(a.ex_dividend_date ?? a.pay_date ?? 0)
+      )[0] || {};
+      return {
+        price,
+        dividendRate,
+        dividendYield,
+        exDividendDate: lastDiv.ex_dividend_date || null,
+        dividendDate: lastDiv.pay_date || null
+      };
+    } catch (e) {
+      console.warn(`[Polygon] ${symbol}: ${e.message}`);
+      return null;
+    }
+  }
   // ========= Price & Dividend orchestration =========
   async function fetchMarketPrices(symbols, force = false) {
     // Decide whether to use cache
@@ -251,8 +299,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           success = false;
           return;
         }
-        // Finnhub → Alpha → Yahoo
-        let data = await fetchFinnhubData(symbol);
+        // Polygon (if key) → Finnhub → Alpha → Yahoo
+        let data = POLYGON_KEY ? await fetchPolygonData(symbol) : null;
+        if (data === null) data = await fetchFinnhubData(symbol);
         if (data === null) data = await fetchAlphaVantageData(symbol);
         if (data === null) data = await fetchYahooData(symbol);
         if (data === null) {
@@ -464,11 +513,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       tr.innerHTML = `
         <td>${sym}</td>
         <td>${fmtUSD(rate)}</td>
-        <td>${payDate}</td>
         <td>${formatPL(gain)}</td>
         <td>${fmtPercent(yieldPct)}</td>
-        <td>${qty}</td>
         <td>${exDate}</td>
+        <td>${payDate}</td>
         <td>
           <button class="edit-btn">Edit</button>
           ${manualSymbols.has(sym) ? '<button class="delete-btn">Delete</button>' : ''}
@@ -496,12 +544,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function enableDivEditMode(row, sym, qty, rate, yieldPct, exDate, payDate) {
     const cells = row.querySelectorAll('td');
     cells[1].innerHTML = `<input type="number" step="0.01" value="${rate}">`;
-    cells[2].innerHTML = `<input type="date" value="${payDate === '-' ? '' : payDate}">`;
-    cells[3].innerHTML = '-'; // gain will be recalculated
-    cells[4].innerHTML = `<input type="number" step="0.01" value="${yieldPct}">`;
-    // qty readonly
-    cells[6].innerHTML = `<input type="date" value="${exDate === '-' ? '' : exDate}">`;
-    const actions = cells[7];
+    cells[2].innerHTML = '-'; // gain will be recalculated
+    cells[3].innerHTML = `<input type="number" step="0.01" value="${yieldPct}">`;
+    cells[4].innerHTML = `<input type="date" value="${exDate === '-' ? '' : exDate}">`;
+    cells[5].innerHTML = `<input type="date" value="${payDate === '-' ? '' : payDate}">`;
+    const actions = cells[6];
     actions.innerHTML = `<button class="save-btn">Save</button><button class="cancel-btn">Cancel</button>`;
     actions.querySelector('.save-btn').addEventListener('click', () => saveDivEdit(row, sym, qty));
     actions.querySelector('.cancel-btn').addEventListener('click', () => renderEtfDividendSummary());
@@ -509,9 +556,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function saveDivEdit(row, sym, qty) {
     const cells = row.querySelectorAll('td');
     const newRate = asNumber(cells[1].querySelector('input').value, 0);
-    const newPayDate = cells[2].querySelector('input').value || null;
-    const newYield = asNumber(cells[4].querySelector('input').value, 0);
-    const newExDate = cells[6].querySelector('input').value || null;
+    const newYield = asNumber(cells[3].querySelector('input').value, 0);
+    const newExDate = cells[4].querySelector('input').value || null;
+    const newPayDate = cells[5].querySelector('input').value || null;
     dividendInfo[sym] = {
       dividendRate: newRate,
       dividendYield: newYield,
@@ -551,16 +598,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else if (key === 'exDividendDate' || key === 'dividendDate') {
         aVal = aVal === '-' ? 0 : new Date(aVal).getTime();
         bVal = bVal === '-' ? 0 : new Date(bVal).getTime();
-      } else if (key === 'qty') {
-        aVal = parseFloat(aVal) || 0;
-        bVal = parseFloat(bVal) || 0;
       }
       return asc ? aVal - bVal : bVal - aVal;
     });
     rows.forEach(r => tbody.appendChild(r));
   }
   function getEtfColumnIndex(key) {
-    const map = { symbol: 1, dividendRate: 2, dividendDate: 3, gain: 4, dividendYield: 5, qty: 6, exDividendDate: 7 };
+    const map = { symbol: 1, dividendRate: 2, gain: 3, dividendYield: 4, exDividendDate: 5, dividendDate: 6 };
     return map[key];
   }
   // ========= Edit / Save / Delete =========
@@ -818,6 +862,49 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       brokerCanvas._chartInstance = chart;
     }
+    // Dividend Yield Distribution
+    const dividendYieldCanvas = $('#dividendYieldChart');
+    if (dividendYieldCanvas) {
+      destroyChartIfAny(dividendYieldCanvas);
+      const etfTrades = trades.filter(t => t.type === 'etf' && t.exit == null);
+      const grouped = {};
+      etfTrades.forEach(t => {
+        grouped[t.symbol] = grouped[t.symbol] || { qty: 0 };
+        grouped[t.symbol].qty += asNumber(t.qty, 0);
+      });
+      const labels = [];
+      const data = [];
+      Object.entries(grouped).forEach(([sym, { qty }]) => {
+        const info = dividendInfo[sym] || {};
+        const yieldPct = asNumber(info.dividendYield, 0) * 100;
+        labels.push(sym);
+        data.push(yieldPct);
+      });
+      const chart = new Chart(dividendYieldCanvas, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Dividend Yield (%)',
+            data: data,
+            backgroundColor: '#5DE2E7'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) { return value + '%'; }
+              }
+            }
+          }
+        }
+      });
+      dividendYieldCanvas._chartInstance = chart;
+    }
   }
   $('#chartType')?.addEventListener('change', () => renderCharts());
   // ========= Risk Analytics =========
@@ -900,9 +987,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.setItem('dividendInfo', JSON.stringify(dividendInfo));
       localStorage.setItem('manualSymbols', JSON.stringify([...manualSymbols]));
       renderEtfDividendSummary();
+      renderCharts();
       manualDividendForm.reset();
     });
   }
+  // ========= Reset Prices =========
+  $('#resetPrices')?.addEventListener('click', async () => {
+    localStorage.removeItem('marketPrices');
+    localStorage.removeItem('dividendInfo');
+    localStorage.removeItem('lastPriceFetchTime');
+    marketPrices = {};
+    dividendInfo = {};
+    lastPriceFetchTime = null;
+    await fetchMarketPrices(trades.map(t => t.symbol), true);
+    precomputePL();
+    renderAll();
+    restartPriceUpdates();
+  });
   // ========= Service worker (optional) =========
   if ('serviceWorker' in navigator) {
     try {
@@ -1004,6 +1105,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       Rho: ${rho.toFixed(4)}
     `;
     $('#greeksResult').innerHTML = result;
+  });
+  // Refresh Prices
+  $('#refreshPrices')?.addEventListener('click', async () => {
+    await fetchMarketPrices(trades.map(t => t.symbol), true);
+    precomputePL();
+    renderAll();
+    restartPriceUpdates();
   });
 });
 
