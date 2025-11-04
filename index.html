@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trading Journal</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="manifest" href="manifest.json" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     if (localStorage.getItem('theme') === 'dark') {
@@ -192,6 +191,8 @@
       <p>Max Drawdown: <span id="maxDrawdown">-5%</span></p>
       <p>Sharpe Ratio: <span id="sharpeRatio">1.5</span></p>
       <p>Win Rate: <span id="winRate">68%</span></p>
+      <p>Best Performing: <span id="bestPerforming">N/A</span></p>
+      <p>Worst Performing: <span id="worstPerforming">N/A</span></p>
     </section>
     <!-- Profit / Loss Summary -->
     <section class="profit-loss">
