@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= Local state / caches =========
   let marketPrices = safeJson(localStorage.getItem('marketPrices'), {});
   let dividendInfo = safeJson(localStorage.getItem('dividendInfo'), {});
+  let manualSymbols = new Set(safeJson(localStorage.getItem('manualSymbols'), []));
   let lastPriceFetchTime = localStorage.getItem('lastPriceFetchTime') ? new Date(localStorage.getItem('lastPriceFetchTime')) : null;
   let priceUpdateInterval = null;
   let rateLimitHit = false;
@@ -273,13 +274,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
           marketPrices[symbol] = picked; // always positive here
         }
-        // Dividends (store even if 0)
-        dividendInfo[symbol] = {
-          dividendRate: asNumber(data.dividendRate, 0),
-          dividendYield: asNumber(data.dividendYield, 0),
-          exDividendDate: data.exDividendDate ?? null,
-          dividendDate: data.dividendDate ?? null
-        };
+        // Dividends (store even if 0, but skip if manual override)
+        if (!manualSymbols.has(symbol)) {
+          dividendInfo[symbol] = {
+            dividendRate: asNumber(data.dividendRate, 0),
+            dividendYield: asNumber(data.dividendYield, 0),
+            exDividendDate: data.exDividendDate ?? null,
+            dividendDate: data.dividendDate ?? null
+          };
+        }
       }));
       // Basic pacing for Alpha Vantage
       if (i + batchSize < uniqueSymbols.length && API_KEY && !rateLimitHit) {
@@ -466,7 +469,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td>${fmtPercent(yieldPct)}</td>
         <td>${qty}</td>
         <td>${exDate}</td>
+        <td>
+          <button class="edit-btn">Edit</button>
+          ${manualSymbols.has(sym) ? '<button class="delete-btn">Delete</button>' : ''}
+        </td>
       `;
+      tr.querySelector('.edit-btn').addEventListener('click', () => enableDivEditMode(tr, sym, qty, rate, yieldPct, exDate, payDate));
+      tr.querySelector('.delete-btn')?.addEventListener('click', () => deleteDividend(sym));
       tbody.appendChild(tr);
     });
     totalGainEl.innerHTML = formatPL(totalGain);
@@ -483,6 +492,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         sortTable('#etfDividendTable', sortKey, !isAsc);
       });
     });
+  }
+  function enableDivEditMode(row, sym, qty, rate, yieldPct, exDate, payDate) {
+    const cells = row.querySelectorAll('td');
+    cells[1].innerHTML = `<input type="number" step="0.01" value="${rate}">`;
+    cells[2].innerHTML = `<input type="date" value="${payDate === '-' ? '' : payDate}">`;
+    cells[3].innerHTML = '-'; // gain will be recalculated
+    cells[4].innerHTML = `<input type="number" step="0.01" value="${yieldPct}">`;
+    // qty readonly
+    cells[6].innerHTML = `<input type="date" value="${exDate === '-' ? '' : exDate}">`;
+    const actions = cells[7];
+    actions.innerHTML = `<button class="save-btn">Save</button><button class="cancel-btn">Cancel</button>`;
+    actions.querySelector('.save-btn').addEventListener('click', () => saveDivEdit(row, sym, qty));
+    actions.querySelector('.cancel-btn').addEventListener('click', () => renderEtfDividendSummary());
+  }
+  async function saveDivEdit(row, sym, qty) {
+    const cells = row.querySelectorAll('td');
+    const newRate = asNumber(cells[1].querySelector('input').value, 0);
+    const newPayDate = cells[2].querySelector('input').value || null;
+    const newYield = asNumber(cells[4].querySelector('input').value, 0);
+    const newExDate = cells[6].querySelector('input').value || null;
+    dividendInfo[sym] = {
+      dividendRate: newRate,
+      dividendYield: newYield,
+      exDividendDate: newExDate,
+      dividendDate: newPayDate
+    };
+    manualSymbols.add(sym);
+    localStorage.setItem('dividendInfo', JSON.stringify(dividendInfo));
+    localStorage.setItem('manualSymbols', JSON.stringify([...manualSymbols]));
+    renderEtfDividendSummary();
+  }
+  async function deleteDividend(sym) {
+    if (confirm(`Delete manual dividend data for ${sym} and revert to API-fetched data?`)) {
+      delete dividendInfo[sym];
+      manualSymbols.delete(sym);
+      localStorage.setItem('dividendInfo', JSON.stringify(dividendInfo));
+      localStorage.setItem('manualSymbols', JSON.stringify([...manualSymbols]));
+      await fetchMarketPrices([sym], true);
+      renderEtfDividendSummary();
+    }
   }
   function sortTable(tableId, key, asc = true) {
     const table = document.querySelector(tableId);
@@ -825,6 +874,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       precomputePL();
       renderAll();
       restartPriceUpdates();
+    });
+  }
+  // ========= Manual Dividend Form =========
+  const manualDividendForm = $('#manualDividendForm');
+  if (manualDividendForm) {
+    manualDividendForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const symbol = String($('#divSymbol')?.value || '').toUpperCase().trim();
+      if (!isValidSymbol(symbol)) {
+        alert(`Invalid symbol: ${symbol}. Use capital letters, digits, dot, or hyphen.`);
+        return;
+      }
+      const rate = asNumber($('#divRate')?.value, 0);
+      const yieldPct = asNumber($('#divYield')?.value, 0);
+      const exDate = $('#exDivDate')?.value || null;
+      const payDate = $('#divPayDate')?.value || null;
+      dividendInfo[symbol] = {
+        dividendRate: rate,
+        dividendYield: yieldPct,
+        exDividendDate: exDate,
+        dividendDate: payDate
+      };
+      manualSymbols.add(symbol);
+      localStorage.setItem('dividendInfo', JSON.stringify(dividendInfo));
+      localStorage.setItem('manualSymbols', JSON.stringify([...manualSymbols]));
+      renderEtfDividendSummary();
+      manualDividendForm.reset();
     });
   }
   // ========= Service worker (optional) =========
