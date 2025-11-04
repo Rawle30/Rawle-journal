@@ -9,7 +9,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
   // ========= Config / Keys =========
   let API_KEY = (localStorage.getItem('apiKey') || 'FTDRTP0955507PPC').trim(); // Alpha Vantage (may rate limit)
-  let POLYGON_KEY = (localStorage.getItem('polygonKey') |NwqcDCmG_VpyNGIpeiubgB3f26ztrPLB| '').trim();
+  let POLYGON_KEY = (localStorage.getItem('polygonKey') || '').trim();
   const FINNHUB_TOKEN = 'd3f79jpr01qolknc02sgd3f79jpr01qolknc02t0'; // Demo-ish token string
   const CORS_PROXY = 'https://allorigins.win/get?url='; // Updated CORS proxy
   const PRICE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -931,6 +931,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     let peak = -Infinity, maxDD = 0;
     equity.forEach(eq => { if (eq > peak) peak = eq; const dd = peak ? (peak - eq) / peak * 100 : 0; if (dd > maxDD) maxDD = dd; });
     maxDrawdownEl.textContent = `-${maxDD.toFixed(2)}%`;
+    // Best and worst performing
+    const agg = {};
+    trades.forEach(t => {
+      const pl = t.pl ?? getPL(t);
+      agg[t.symbol] = (agg[t.symbol] || 0) + pl;
+    });
+    const sortedAgg = Object.entries(agg).sort((a, b) => b[1] - a[1]);
+    const best = sortedAgg[0] ? `${sortedAgg[0][0]}: ${formatPL(sortedAgg[0][1])}` : 'N/A';
+    const worst = sortedAgg[sortedAgg.length - 1] ? `${sortedAgg[sortedAgg.length - 1][0]}: ${formatPL(sortedAgg[sortedAgg.length - 1][1])}` : 'N/A';
+    $('#bestPerforming').innerHTML = best;
+    $('#worstPerforming').innerHTML = worst;
   }
   // ========= Form handling =========
   const tradeForm = $('#tradeForm');
