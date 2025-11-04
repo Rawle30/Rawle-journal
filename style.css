@@ -25,12 +25,14 @@ body {
 #ticker-scroll {
   white-space: nowrap;
   animation: scroll 20s linear infinite;
+  flex-grow: 1;
+  margin-right: 1em;
 }
 @keyframes scroll {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
 }
-#darkToggle, #refreshPrices {
+#darkToggle, #refreshPrices, #resetPrices {
   background-color: var(--blue);
   color: white;
   border: none;
@@ -40,7 +42,7 @@ body {
   font-size: 0.85em;
   margin-left: 0.3em;
 }
-#darkToggle:hover, #refreshPrices:hover {
+#darkToggle:hover, #refreshPrices:hover, #resetPrices:hover {
   background-color: #4ac0c7;
 }
 #refreshPrices:disabled {
@@ -80,7 +82,6 @@ body {
   padding: 0.3em;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-template-columns: repeat(3, 1fr);
   grid-gap: 0.3em;
   grid-auto-rows: minmax(200px, auto);
 }
@@ -98,7 +99,7 @@ section {
   flex-direction: column;
 }
 section.active-section {
-  box-shadow: 0 0 0 2px var(--blue);
+  box-shadow: 0 0 0 0 2px var(--blue);
 }
 section h2 {
   margin: 0 0 0.3em 0;
@@ -121,7 +122,6 @@ table {
   overflow-x: auto;
   overflow-y: auto;
   scroll-behavior: smooth;
-  scrollbar-width: thin;
   scrollbar-width: thin;
   scrollbar-color: var(--blue) #f0f0f0;
   max-height: 40vh;
@@ -207,7 +207,6 @@ button:hover {
   padding: 0.5em;
   text-align: center;
   margin-bottom: 0.5em;
-  margin-bottom: 0.5em;
   background-color: #f9f9f9;
   color: #666;
 }
@@ -242,7 +241,8 @@ canvas {
 }
 .equity-curve canvas,
 .symbol-distribution canvas,
-.broker-distribution canvas {
+.broker-distribution canvas,
+.dividend-yield-chart canvas {
   width: 100%;
   height: 25vh;
   max-height: 150px;
@@ -318,7 +318,7 @@ td[data-broker]::before {
   border-collapse: collapse;
 }
 .etf-dividend-box th, .etf-dividend-box td {
-  padding: 0.5em;
+  padding: 0.3em 0.5em;
   border-bottom: 1px solid #ddd;
 }
 .etf-dividend-box th {
@@ -490,6 +490,13 @@ body.compact .table-container {
     align-items: center;
     padding: 0.4em;
   }
+  .sidebar ul {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .sidebar li {
+    margin: 0.2em;
+  }
   .trade-entry form, #settings form {
     grid-template-columns: 1fr;
   }
@@ -512,6 +519,18 @@ body.compact .table-container {
   }
   .table-container {
     max-height: 35vh;
+  }
+  .ticker {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #ticker-scroll {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 0.3em;
+  }
+  #refreshPrices, #darkToggle, #resetPrices {
+    margin: 0.2em;
   }
 }
 
