@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `<span class="${color}">${fmtUSD(n)}</span>`;
   };
   // ========= Theme / Compact =========
-  if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
+  // Applied in head script
   $('#darkToggle')?.addEventListener('click', () => {
     document.body.classList.toggle('dark');
     localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
@@ -1007,8 +1007,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ========= Service worker (optional) =========
   if ('serviceWorker' in navigator) {
     try {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r => r.unregister()));
       const reg = await navigator.serviceWorker.register('sw.js');
       if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
       navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
