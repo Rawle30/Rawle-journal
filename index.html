@@ -145,6 +145,15 @@
         <button id="savePolygonKey">Save Polygon Key</button>
       </label>
       <p id="apiKeyStatus" style="color: var(--red);"></p>
+      <h3>Manual Dividend Entry</h3>
+      <form id="manualDividendForm">
+        <label>Symbol: <input type="text" id="divSymbol" placeholder="e.g. AAPL" required pattern="[A-Z][A-Z0-9.\-]{0,9}" title="Valid symbol (A–Z, digits, dot, hyphen)"></label>
+        <label>Dividend Rate: <input type="number" id="divRate" step="0.01" required></label>
+        <label>Dividend Yield: <input type="number" id="divYield" step="0.01" required></label>
+        <label>Ex-Dividend Date: <input type="date" id="exDivDate"></label>
+        <label>Dividend Pay Date: <input type="date" id="divPayDate"></label>
+        <button type="submit">Save Dividend Data</button>
+      </form>
     </section>
     <!-- Equity Curve Chart -->
     <section class="equity-curve">
@@ -208,6 +217,7 @@
               <th class="sortable" data-sort="dividendYield">Dividend Yield</th>
               <th class="sortable" data-sort="qty">Qty</th>
               <th class="sortable" data-sort="exDividendDate">Ex-Div Date</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="etfDividendRows"></tbody>
@@ -223,7 +233,7 @@
     <section class="trade-entry">
       <h2>Add / Edit Trade</h2>
       <form id="tradeForm">
-        <label>Symbol: <input type="text" name="symbol" required pattern="[A-Z]{1,5}" title="Enter a valid stock symbol (1-5 uppercase letters)" /></label>
+        <label>Symbol: <input type="text" name="symbol" required pattern="[A-Z][A-Z0-9.\-]{0,9}" title="Enter a valid stock symbol (uppercase letters, digits, dot, hyphen)" /></label>
         <label>Qty: <input type="number" name="qty" step="0.01" required /></label>
         <label>Entry Price: <input type="number" name="entry" step="0.01" required /></label>
         <label>Entry Date: <input type="date" name="date" required /></label>
